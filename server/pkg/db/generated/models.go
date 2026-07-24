@@ -1058,6 +1058,31 @@ type IssueWakeupReceipt struct {
 	CoalesceKey pgtype.Text        `json:"coalesce_key"`
 }
 
+type JiraConnection struct {
+	ID                     pgtype.UUID        `json:"id"`
+	WorkspaceID            pgtype.UUID        `json:"workspace_id"`
+	BaseUrl                string             `json:"base_url"`
+	AccountEmail           string             `json:"account_email"`
+	ApiTokenEncrypted      string             `json:"api_token_encrypted"`
+	WebhookSecretEncrypted string             `json:"webhook_secret_encrypted"`
+	ConnectedByID          pgtype.UUID        `json:"connected_by_id"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type JiraIssueLink struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	ConnectionID   pgtype.UUID        `json:"connection_id"`
+	JiraIssueKey   string             `json:"jira_issue_key"`
+	JiraIssueID    string             `json:"jira_issue_id"`
+	MulticaIssueID pgtype.UUID        `json:"multica_issue_id"`
+	SyncStatus     string             `json:"sync_status"`
+	LastInboundAt  pgtype.Timestamptz `json:"last_inbound_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type LarkBindingToken struct {
 	TokenHash      string             `json:"token_hash"`
 	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
