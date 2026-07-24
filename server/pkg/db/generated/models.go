@@ -1068,6 +1068,7 @@ type JiraConnection struct {
 	ConnectedByID          pgtype.UUID        `json:"connected_by_id"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	Jql                    pgtype.Text        `json:"jql"`
 }
 
 type JiraIssueLink struct {
