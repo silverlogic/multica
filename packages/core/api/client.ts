@@ -179,6 +179,10 @@ import type {
   ListVCSConnectionsResponse,
   ConnectVCSRequest,
   ConnectVCSResponse,
+  JiraConnection,
+  ListJiraConnectionsResponse,
+  ConnectJiraRequest,
+  ConnectJiraResponse,
   ListLarkInstallationsResponse,
   BeginLarkInstallResponse,
   LarkInstallStatusResponse,
@@ -4889,6 +4893,28 @@ export class ApiClient {
       `/api/workspaces/${workspaceId}/vcs/connections/${connectionId}/rotate-webhook`,
       { method: "POST" },
     );
+  }
+
+  // Jira integration
+  async listJiraConnections(workspaceId: string): Promise<ListJiraConnectionsResponse> {
+    return this.fetch(`/api/workspaces/${workspaceId}/jira/connections`);
+  }
+
+  async getJiraConnection(workspaceId: string, connectionId: string): Promise<JiraConnection> {
+    return this.fetch(`/api/workspaces/${workspaceId}/jira/connections/${connectionId}`);
+  }
+
+  async connectJira(workspaceId: string, body: ConnectJiraRequest): Promise<ConnectJiraResponse> {
+    return this.fetch(`/api/workspaces/${workspaceId}/jira/connections`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteJiraConnection(workspaceId: string, connectionId: string): Promise<void> {
+    await this.fetch(`/api/workspaces/${workspaceId}/jira/connections/${connectionId}`, {
+      method: "DELETE",
+    });
   }
 
   // Lark integration
