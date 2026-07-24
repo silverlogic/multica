@@ -221,6 +221,7 @@ export type {
   ListJiraConnectionsResponse,
   ConnectJiraRequest,
   ConnectJiraResponse,
+  SyncJiraConnectionResponse,
 } from "./jira";
 export type {
   LarkInstallation,
