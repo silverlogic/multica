@@ -89,6 +89,8 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"issue_subscriber":                   workspaceDelete,
 	"issue_to_label":                     workspaceDelete,
 	"issue_vcs_pull_request":             workspaceDelete,
+	"jira_connection":                    workspaceDelete,
+	"jira_issue_link":                    workspaceDelete,
 	"lark_binding_token":                 workspaceDelete,
 	"lark_chat_session_binding":          workspaceDelete,
 	"lark_inbound_audit":                 workspaceDelete,
