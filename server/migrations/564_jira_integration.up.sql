@@ -17,7 +17,7 @@
 -- code (DeleteJiraConnection sweeps jira_issue_link in a single atomic
 -- statement). The inline UNIQUE / PRIMARY KEY constraints stay — they back
 -- the ON CONFLICT upsert targets in jira.sql. Secondary indexes live in
--- follow-up single-statement CREATE INDEX CONCURRENTLY migrations (225-227),
+-- follow-up single-statement CREATE INDEX CONCURRENTLY migrations (565-567),
 -- which cannot share a file with these CREATE TABLEs.
 
 CREATE TABLE IF NOT EXISTS jira_connection (
