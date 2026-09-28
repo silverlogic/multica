@@ -24,6 +24,7 @@ import { issueKeys } from "@multica/core/issues";
 import { api, ApiError } from "@multica/core/api";
 import type { ConnectJiraResponse } from "@multica/core/types";
 import { useT } from "../../i18n";
+import { SettingsTab } from "./settings-layout";
 
 /** Absolute inbound webhook URL to paste into Jira. Falls back to prefixing
  * the current origin when the server has no public URL configured. */
@@ -133,8 +134,11 @@ export function JiraTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">{t(($) => $.jira.page_description)}</p>
+    <SettingsTab
+      title={t(($) => $.page.tabs.jira)}
+      description={t(($) => $.jira.page_description)}
+      scope="workspace"
+    >
 
       {connections.length > 0 && (
         <div className="space-y-3">
@@ -147,8 +151,8 @@ export function JiraTab() {
                       <Link2 className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-sm font-medium break-all">{c.base_url}</p>
-                      <p className="text-xs text-muted-foreground break-all">
+                      <p className="text-body font-medium break-all">{c.base_url}</p>
+                      <p className="text-caption text-muted-foreground break-all">
                         {t(($) => $.jira.connected_as, { email: c.account_email })}
                       </p>
                     </div>
@@ -191,8 +195,8 @@ export function JiraTab() {
         <Card className="border-primary/40">
           <CardContent className="space-y-3">
             <div className="space-y-1">
-              <p className="text-sm font-medium">{t(($) => $.jira.webhook_setup_title)}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-body font-medium">{t(($) => $.jira.webhook_setup_title)}</p>
+              <p className="text-caption text-muted-foreground">
                 {t(($) => $.jira.webhook_setup_description)}
               </p>
             </div>
@@ -209,7 +213,7 @@ export function JiraTab() {
               copyLabel={t(($) => $.jira.copy)}
               mono
             />
-            <p className="text-xs text-amber-600 dark:text-amber-500">
+            <p className="text-caption text-warning">
               {t(($) => $.jira.webhook_secret_warning)}
             </p>
           </CardContent>
@@ -219,11 +223,11 @@ export function JiraTab() {
       {canManage && (
         <Card>
           <CardContent className="space-y-4">
-            <p className="text-sm font-medium">{t(($) => $.jira.connect_title)}</p>
+            <p className="text-body font-medium">{t(($) => $.jira.connect_title)}</p>
             {!configured ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-caption text-muted-foreground">
                 {t(($) => $.jira.not_configured)}{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                <code className="rounded bg-muted px-1 py-0.5 text-micro">
                   MULTICA_JIRA_SECRET_KEY
                 </code>
                 .
@@ -245,6 +249,8 @@ export function JiraTab() {
                   <Input
                     id="jira-email"
                     type="email"
+                    // Technical example value (an address format), not translatable copy.
+                    // eslint-disable-next-line no-restricted-syntax
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -261,7 +267,7 @@ export function JiraTab() {
                     onChange={(e) => setToken(e.target.value)}
                     disabled={connecting}
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-caption text-muted-foreground">
                     {t(($) => $.jira.form_token_hint)}
                   </p>
                 </div>
@@ -269,14 +275,16 @@ export function JiraTab() {
                   <Label htmlFor="jira-jql">{t(($) => $.jira.form_jql_label)}</Label>
                   <Input
                     id="jira-jql"
+                    // The default JQL itself, which Jira parses in English.
+                    // eslint-disable-next-line no-restricted-syntax
                     placeholder="assignee = currentUser()"
                     value={jql}
                     onChange={(e) => setJql(e.target.value)}
                     disabled={connecting}
                   />
-                  <p className="text-xs text-muted-foreground">{t(($) => $.jira.form_jql_hint)}</p>
+                  <p className="text-caption text-muted-foreground">{t(($) => $.jira.form_jql_hint)}</p>
                 </div>
-                {formError && <p className="text-xs text-destructive">{formError}</p>}
+                {formError && <p className="text-caption text-destructive">{formError}</p>}
                 <div className="flex justify-end">
                   <Button
                     size="sm"
@@ -293,7 +301,7 @@ export function JiraTab() {
       )}
 
       {!canManage && connections.length === 0 && (
-        <p className="text-xs text-muted-foreground">{t(($) => $.jira.contact_admin)}</p>
+        <p className="text-caption text-muted-foreground">{t(($) => $.jira.contact_admin)}</p>
       )}
 
       <AlertDialog
@@ -321,7 +329,7 @@ export function JiraTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SettingsTab>
   );
 }
 
@@ -340,12 +348,12 @@ function CopyField({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="text-caption">{label}</Label>
       <div className="flex items-center gap-2">
         <Input
           readOnly
           value={value}
-          className={mono ? "min-w-0 font-mono text-xs" : "min-w-0 text-xs"}
+          className={mono ? "min-w-0 font-mono text-caption" : "min-w-0 text-caption"}
         />
         <Button
           variant="outline"

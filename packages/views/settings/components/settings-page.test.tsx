@@ -21,6 +21,7 @@ vi.mock("./workspace-tab", stub("WorkspaceTab"));
 vi.mock("./members-tab", stub("MembersTab"));
 vi.mock("./code-tab", stub("CodeTab"));
 vi.mock("./channels-tab", stub("ChannelsTab"));
+vi.mock("./jira-tab", stub("JiraTab"));
 vi.mock("./notifications-tab", stub("NotificationsTab"));
 vi.mock("./labels-tab", stub("LabelsTab"));
 vi.mock("./issue-statuses-tab", stub("IssueStatusesTab"));
@@ -215,7 +216,7 @@ describe("SettingsPage information architecture", () => {
     const connections = within(workspace).getByRole("group", {
       name: "Connections & extensions",
     });
-    for (const name of ["Code", "Messaging", "MCP servers"]) {
+    for (const name of ["Code", "Messaging", "Jira", "MCP servers"]) {
       expect(within(connections).getByRole("link", { name })).toBeInTheDocument();
     }
   });
@@ -244,6 +245,16 @@ describe("SettingsPage information architecture", () => {
     renderWithI18n(<SettingsPage />);
     expect(screen.getByText("CodeTab")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Code" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("mounts the Jira page from its tab URL", () => {
+    navigationState.search = "tab=jira";
+    renderWithI18n(<SettingsPage />);
+    expect(screen.getByText("JiraTab")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Jira" })).toHaveAttribute(
       "aria-current",
       "page",
     );

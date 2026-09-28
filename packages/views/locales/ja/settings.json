@@ -404,6 +404,7 @@
       "billing": "請求とプラン",
       "code": "コード",
       "channels": "メッセージング",
+      "jira": "Jira",
       "apps": "接続済みアプリ"
     },
     "groups": {
@@ -891,7 +892,7 @@
     "error_bad_credentials": "Jira がメールアドレス/API トークンの組み合わせを拒否しました。確認して再試行してください。",
     "error_unreachable": "Jira サイトに接続できませんでした。URL を確認して再試行してください。",
     "disconnect_confirm_title": "この Jira サイトの接続を解除しますか?",
-    "disconnect_confirm_description": "このサイトからの Webhook 配信が停止し、課題のリンクが削除されます。すでに Multica にミラーリングされた課題は保持されます。この操作は元に戻せません。",
+    "disconnect_confirm_description": "このサイトからの Webhook 配信が停止し、課題のリンクが削除されます。すでに Multica にミラーリングされたタスクは保持されます。この操作は元に戻せません。",
     "disconnect_confirm_cancel": "キャンセル",
     "disconnect_confirm_action": "接続解除",
     "toast_connected": "Jira サイトを接続しました",

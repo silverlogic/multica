@@ -405,6 +405,7 @@
       "billing": "Billing",
       "code": "Code",
       "channels": "Messaging",
+      "jira": "Jira",
       "apps": "Connected apps"
     },
     "groups": {

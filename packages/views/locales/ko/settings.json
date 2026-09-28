@@ -404,6 +404,7 @@
       "billing": "결제 및 요금제",
       "code": "코드",
       "channels": "메신저",
+      "jira": "Jira",
       "apps": "연결된 앱"
     },
     "groups": {
@@ -932,7 +933,7 @@
     "error_bad_credentials": "Jira가 이메일/API 토큰 조합을 거부했습니다. 확인 후 다시 시도하세요.",
     "error_unreachable": "Jira 사이트에 연결할 수 없습니다. URL을 확인한 후 다시 시도하세요.",
     "disconnect_confirm_title": "이 Jira 사이트의 연결을 해제할까요?",
-    "disconnect_confirm_description": "이 사이트의 웹훅 수신이 중단되고 이슈 연결이 제거됩니다. 이미 Multica로 미러링된 이슈는 유지됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "disconnect_confirm_description": "이 사이트의 웹훅 수신이 중단되고 이슈 연결이 제거됩니다. 이미 Multica로 미러링된 태스크는 유지됩니다. 이 작업은 되돌릴 수 없습니다.",
     "disconnect_confirm_cancel": "취소",
     "disconnect_confirm_action": "연결 해제",
     "toast_connected": "Jira 사이트가 연결되었습니다",

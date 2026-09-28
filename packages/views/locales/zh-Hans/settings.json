@@ -404,6 +404,7 @@
       "billing": "账单与套餐",
       "code": "代码",
       "channels": "消息渠道",
+      "jira": "Jira",
       "apps": "已连接应用"
     },
     "groups": {
@@ -891,7 +892,7 @@
     "error_bad_credentials": "Jira 拒绝了该邮箱/API 令牌组合。请检查后重试。",
     "error_unreachable": "无法访问该 Jira 站点。请检查 URL 后重试。",
     "disconnect_confirm_title": "断开此 Jira 站点?",
-    "disconnect_confirm_description": "来自该站点的 Webhook 推送将停止,其事项关联将被移除。已镜像到 Multica 的事项会保留。此操作无法撤销。",
+    "disconnect_confirm_description": "来自该站点的 Webhook 推送将停止,其事项关联将被移除。已镜像到 Multica 的任务会保留。此操作无法撤销。",
     "disconnect_confirm_cancel": "取消",
     "disconnect_confirm_action": "断开连接",
     "toast_connected": "Jira 站点已连接",
