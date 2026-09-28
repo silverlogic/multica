@@ -25,6 +25,41 @@ describe("ApiClient status reorder", () => {
   });
 });
 
+describe("ApiClient Jira connections", () => {
+  function respond(body: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    return new ApiClient("https://api.example.test");
+  }
+
+  it("locks the Jira tab when the list response is malformed", async () => {
+    const client = respond({ connections: "invalid", can_manage: true });
+    await expect(client.listJiraConnections("ws-1")).resolves.toEqual({
+      connections: [],
+      configured: false,
+      can_manage: false,
+    });
+  });
+
+  it("throws rather than show an empty one-time webhook secret", async () => {
+    const client = respond({ id: "c1", base_url: "https://acme.atlassian.net" });
+    await expect(
+      client.connectJira("ws-1", {
+        base_url: "https://acme.atlassian.net",
+        account_email: "dev@acme.test",
+        api_token: "token",
+      }),
+    ).rejects.toThrow(/Malformed response/);
+  });
+});
+
 describe("ApiClient agent conversation-starter compatibility", () => {
   const prompt = {
     label: "Review a PR",

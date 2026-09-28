@@ -44,6 +44,9 @@ import type {
   TelegramInstallation,
   ListTelegramInstallationsResponse,
   RedeemTelegramBindingTokenResponse,
+  JiraConnection,
+  ListJiraConnectionsResponse,
+  SyncJiraConnectionResponse,
   GroupedIssuesResponse,
   GitHubConnectResponse,
   IssuePullRequestsResponse,
@@ -3388,6 +3391,60 @@ export const EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE: RedeemTelegramBinding
   workspace_id: "",
   installation_id: "",
   telegram_user_id: "",
+};
+
+// Jira. A malformed list must not unlock the connect form or management
+// actions, so configured and can_manage default to false.
+export const JiraConnectionSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  base_url: z.string().default(""),
+  account_email: z.string().default(""),
+  webhook_url: z.string().default(""),
+  webhook_path: z.string().default(""),
+  jql: z.string().default(""),
+  created_at: z.string().default(""),
+}).loose();
+
+export const EMPTY_JIRA_CONNECTION: JiraConnection = {
+  id: "",
+  workspace_id: "",
+  base_url: "",
+  account_email: "",
+  webhook_url: "",
+  webhook_path: "",
+  jql: "",
+  created_at: "",
+};
+
+export const ListJiraConnectionsResponseSchema = z.object({
+  connections: z.array(JiraConnectionSchema).default([]),
+  configured: z.boolean().default(false),
+  can_manage: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE: ListJiraConnectionsResponse = {
+  connections: [],
+  configured: false,
+  can_manage: false,
+};
+
+// The webhook secret is shown once. No fallback: an unreadable connect
+// response must surface as an error, never as an empty secret to copy.
+export const ConnectJiraResponseSchema = JiraConnectionSchema.extend({
+  webhook_secret: z.string(),
+}).loose();
+
+export const SyncJiraConnectionResponseSchema = z.object({
+  created: z.number().default(0),
+  updated: z.number().default(0),
+  total: z.number().default(0),
+}).loose();
+
+export const EMPTY_SYNC_JIRA_CONNECTION_RESPONSE: SyncJiraConnectionResponse = {
+  created: 0,
+  updated: 0,
+  total: 0,
 };
 
 // Skills. Introduced for `POST /api/skills/:id/refresh` (update a skill from

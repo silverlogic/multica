@@ -13,6 +13,12 @@ import {
   EMPTY_TELEGRAM_INSTALLATION,
   EMPTY_LIST_TELEGRAM_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE,
+  JiraConnectionSchema,
+  ListJiraConnectionsResponseSchema,
+  ConnectJiraResponseSchema,
+  SyncJiraConnectionResponseSchema,
+  EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE,
+  EMPTY_SYNC_JIRA_CONNECTION_RESPONSE,
   AgentTaskListSchema,
   AgentActivityBucketListSchema,
   TaskMessageListSchema,
@@ -2053,6 +2059,71 @@ describe("Telegram installation schemas", () => {
         { endpoint: "POST /api/telegram/binding/redeem" },
       ),
     ).toEqual(EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE);
+  });
+});
+
+// A drifted Jira list must not unlock connect or management actions, and the
+// one-time webhook secret must never parse as an empty string.
+describe("Jira connection schemas", () => {
+  it("parses a well-formed list", () => {
+    const list = ListJiraConnectionsResponseSchema.parse({
+      connections: [
+        {
+          id: "c1",
+          workspace_id: "w1",
+          base_url: "https://acme.atlassian.net",
+          account_email: "dev@acme.test",
+          webhook_url: "",
+          webhook_path: "/api/webhooks/jira/c1",
+          jql: "project = ACME",
+          created_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+      configured: true,
+      can_manage: true,
+    });
+    expect(list.connections[0]?.jql).toBe("project = ACME");
+    expect(list.can_manage).toBe(true);
+  });
+
+  it("defaults missing fields to the locked, unconfigured state", () => {
+    expect(ListJiraConnectionsResponseSchema.parse({})).toEqual(
+      EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE,
+    );
+    const conn = JiraConnectionSchema.parse({ id: "c1" });
+    expect(conn.jql).toBe("");
+    expect(conn.webhook_path).toBe("");
+  });
+
+  it("keeps unknown forward-compatible connection fields", () => {
+    const parsed = JiraConnectionSchema.parse({ id: "c1", future_field: "keep" });
+    expect((parsed as unknown as { future_field?: string }).future_field).toBe("keep");
+  });
+
+  it("rejects a connect response without its webhook secret", () => {
+    expect(ConnectJiraResponseSchema.safeParse({ id: "c1" }).success).toBe(false);
+    expect(
+      ConnectJiraResponseSchema.parse({ id: "c1", webhook_secret: "s3cret" }).webhook_secret,
+    ).toBe("s3cret");
+  });
+
+  it("falls back safely for malformed list and sync responses", () => {
+    expect(
+      parseWithFallback(
+        "not json",
+        ListJiraConnectionsResponseSchema,
+        EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE,
+        { endpoint: "GET /api/workspaces/:id/jira/connections" },
+      ),
+    ).toEqual(EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE);
+    expect(
+      parseWithFallback(
+        { created: "two" },
+        SyncJiraConnectionResponseSchema,
+        EMPTY_SYNC_JIRA_CONNECTION_RESPONSE,
+        { endpoint: "POST /api/workspaces/:id/jira/connections/:connectionId/sync" },
+      ),
+    ).toEqual(EMPTY_SYNC_JIRA_CONNECTION_RESPONSE);
   });
 });
 
