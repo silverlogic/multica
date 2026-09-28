@@ -201,6 +201,48 @@ func TestJiraWebhook_UpdateSyncsExistingIssue(t *testing.T) {
 	}
 }
 
+// Jira redelivers issue_updated for fields Multica does not mirror. Only a
+// change to a mirrored field may bump the issue revision, or clients holding
+// the current revision would see a phantom edit.
+func TestJiraWebhook_RevisionMovesOnlyOnMirroredChange(t *testing.T) {
+	ctx := context.Background()
+	box := withJiraBox(t)
+	testHandler.JiraClient = &mockJiraClient{}
+	conn := seedJiraConnection(t, ctx, box, "https://acme.atlassian.net")
+	t.Cleanup(func() { cleanupJira(ctx) })
+
+	fire := func(raw []byte) db.Issue {
+		t.Helper()
+		w := httptest.NewRecorder()
+		testHandler.HandleJiraWebhook(w, jiraWebhookReq(uuidToString(conn.ID), jiraTestSecret, raw))
+		if w.Code != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d (%s)", w.Code, w.Body.String())
+		}
+		link, err := testHandler.Queries.GetJiraIssueLink(ctx, db.GetJiraIssueLinkParams{
+			ConnectionID: conn.ID,
+			JiraIssueKey: "PROJ-8",
+		})
+		if err != nil {
+			t.Fatalf("GetJiraIssueLink: %v", err)
+		}
+		issue, err := testHandler.Queries.GetIssue(ctx, link.MulticaIssueID)
+		if err != nil {
+			t.Fatalf("GetIssue: %v", err)
+		}
+		return issue
+	}
+
+	created := fire(jiraIssuePayload("jira:issue_created", "10043", "PROJ-8", "Title", "details"))
+	same := fire(jiraIssuePayload("jira:issue_updated", "10043", "PROJ-8", "Title", "details"))
+	if same.Revision != created.Revision {
+		t.Errorf("no-op redelivery bumped revision %d -> %d", created.Revision, same.Revision)
+	}
+	renamed := fire(jiraIssuePayload("jira:issue_updated", "10043", "PROJ-8", "Renamed", "details"))
+	if renamed.Revision != created.Revision+1 {
+		t.Errorf("rename: expected revision %d, got %d", created.Revision+1, renamed.Revision)
+	}
+}
+
 // A webhook delivery whose body carries no fields (some Jira webhook configs
 // exclude them) must be enriched via the REST client before mirroring.
 func TestJiraWebhook_ThinPayloadEnrichedViaClient(t *testing.T) {

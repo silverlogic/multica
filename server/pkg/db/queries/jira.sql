@@ -77,9 +77,25 @@ RETURNING *;
 -- description). Deliberately NOT reusing UpdateIssue, whose non-COALESCE
 -- sqlc.narg fields (assignee, dates, parent, project) would be nulled by a
 -- partial update. workspace_id is the SQL-layer tenant guard.
-UPDATE issue SET
+-- revision / last_activity_at / updated_at move only when a mirrored field
+-- actually changes, matching UpdateIssue, so a no-op redelivery does not look
+-- like an edit to clients holding the current revision.
+UPDATE issue AS i SET
     title       = $2,
-    description = COALESCE(sqlc.narg('description'), description),
-    updated_at  = now()
-WHERE id = $1 AND workspace_id = $3
-RETURNING *;
+    description = COALESCE(sqlc.narg('description'), i.description),
+    revision    = i.revision + CASE WHEN changed.did_change THEN 1 ELSE 0 END,
+    last_activity_at = CASE WHEN changed.did_change
+        THEN GREATEST(COALESCE(i.last_activity_at, i.updated_at), now())
+        ELSE i.last_activity_at
+    END,
+    updated_at  = CASE WHEN changed.did_change THEN now() ELSE i.updated_at END
+FROM (
+    SELECT cur.id,
+           ROW(cur.title, cur.description) IS DISTINCT FROM
+           ROW($2::text, COALESCE(sqlc.narg('description')::text, cur.description)) AS did_change
+    FROM issue AS cur
+    WHERE cur.id = $1 AND cur.workspace_id = $3
+    FOR UPDATE
+) AS changed
+WHERE i.id = changed.id
+RETURNING i.*;
