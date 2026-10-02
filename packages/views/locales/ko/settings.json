@@ -819,8 +819,8 @@
     "resume": "GitHub 기능 재개"
   },
   "vcs": {
-    "section_title": "셀프 호스팅 Git",
-    "page_description": "셀프 호스팅 Forgejo, Gitea, GitLab 인스턴스를 연결해 Pull request를 태스크에 미러링합니다. 연결마다 액세스 토큰을 사용하며, 에이전트는 런타임 자체의 Git 자격 증명으로 브랜치를 푸시하고 PR을 엽니다.",
+    "section_title": "Git 제공자",
+    "page_description": "셀프 호스팅 Forgejo, Gitea, GitLab 인스턴스 또는 Bitbucket Cloud를 연결해 Pull request를 태스크에 미러링합니다. 연결마다 액세스 토큰을 사용하며, 에이전트는 런타임 자체의 Git 자격 증명으로 브랜치를 푸시하고 PR을 엽니다.",
     "connect_title": "Connect a provider instance",
     "connected_as": "Connected as {{login}}",
     "form_provider_label": "Provider",
@@ -828,6 +828,9 @@
     "form_token_label": "Access token",
     "form_token_placeholder": "Access token",
     "form_token_hint": "Create an access token with read access to repositories. Forgejo/Gitea: Settings, Applications. GitLab: a personal access token with the read_api scope.",
+    "form_email_label": "Atlassian 계정 이메일",
+    "form_token_hint_bitbucket": "read:user:bitbucket 범위가 있는 Atlassian API 토큰을 만드세요(id.atlassian.com, 보안, API 토큰).",
+    "webhook_setup_bitbucket": "각 Bitbucket 저장소에서 Repository settings, Webhooks를 열고 아래 URL과 시크릿으로 웹훅을 추가하세요. Pull request 트리거(Created, Updated, Merged, Declined)와 Build status 트리거(Created, Updated)를 활성화하세요.",
     "connect": "Connect",
     "connecting": "Connecting...",
     "disconnect": "Disconnect",
@@ -856,7 +859,7 @@
     "rotate_confirm_action": "Regenerate",
     "rotating": "Regenerating...",
     "toast_rotate_failed": "Could not regenerate webhook secret",
-    "hosts_hint": "GitLab, Gitea 또는 Forgejo.",
+    "hosts_hint": "GitLab, Gitea, Forgejo 또는 Bitbucket Cloud.",
     "connect_another": "추가로 연결",
     "connection_actions": "{{url}} 작업",
     "webhook_done": "저장했습니다"

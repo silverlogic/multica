@@ -819,8 +819,8 @@
     "resume": "GitHub 機能を再開"
   },
   "vcs": {
-    "section_title": "セルフホスト Git",
-    "page_description": "セルフホストの Forgejo、Gitea、GitLab インスタンスを接続し、Pull request をタスクにミラーリングします。接続ごとにアクセストークンを使用し、エージェントはランタイム自身の Git 認証情報でブランチを push して PR を作成します。",
+    "section_title": "Git プロバイダー",
+    "page_description": "セルフホストの Forgejo、Gitea、GitLab インスタンス、または Bitbucket Cloud を接続し、Pull request をタスクにミラーリングします。接続ごとにアクセストークンを使用し、エージェントはランタイム自身の Git 認証情報でブランチを push して PR を作成します。",
     "connect_title": "Connect a provider instance",
     "connected_as": "Connected as {{login}}",
     "form_provider_label": "Provider",
@@ -828,6 +828,9 @@
     "form_token_label": "Access token",
     "form_token_placeholder": "Access token",
     "form_token_hint": "Create an access token with read access to repositories. Forgejo/Gitea: Settings, Applications. GitLab: a personal access token with the read_api scope.",
+    "form_email_label": "Atlassian アカウントのメールアドレス",
+    "form_token_hint_bitbucket": "read:user:bitbucket スコープを持つ Atlassian API トークンを作成してください（id.atlassian.com の「セキュリティ」→「API トークン」）。",
+    "webhook_setup_bitbucket": "各 Bitbucket リポジトリで Repository settings → Webhooks を開き、下記の URL とシークレットで Webhook を追加します。Pull request のトリガー（Created、Updated、Merged、Declined）と Build status のトリガー（Created、Updated）を有効にしてください。",
     "connect": "Connect",
     "connecting": "Connecting...",
     "disconnect": "Disconnect",
@@ -856,7 +859,7 @@
     "rotate_confirm_action": "Regenerate",
     "rotating": "Regenerating...",
     "toast_rotate_failed": "Could not regenerate webhook secret",
-    "hosts_hint": "GitLab、Gitea、Forgejo に対応しています。",
+    "hosts_hint": "GitLab、Gitea、Forgejo、Bitbucket Cloud に対応しています。",
     "connect_another": "さらに接続",
     "connection_actions": "{{url}} の操作",
     "webhook_done": "保存しました"

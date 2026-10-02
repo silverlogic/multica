@@ -823,8 +823,8 @@
     "resume": "Reprendre les fonctionnalités GitHub"
   },
   "vcs": {
-    "section_title": "Git auto-hébergé",
-    "page_description": "Connectez une instance auto-hébergée de Forgejo, Gitea ou GitLab pour refléter les pull requests sur les tâches. Chaque connexion utilise un jeton d'accès ; les agents poussent leurs branches et ouvrent les PR avec les identifiants git propres au runtime.",
+    "section_title": "Fournisseurs Git",
+    "page_description": "Connectez une instance auto-hébergée de Forgejo, Gitea ou GitLab, ou Bitbucket Cloud, pour refléter les pull requests sur les tâches. Chaque connexion utilise un jeton d'accès ; les agents poussent leurs branches et ouvrent les PR avec les identifiants git propres au runtime.",
     "connect_title": "Connecter une instance de fournisseur",
     "connected_as": "Connecté en tant que {{login}}",
     "form_provider_label": "Fournisseur",
@@ -832,6 +832,9 @@
     "form_token_label": "Jeton d'accès",
     "form_token_placeholder": "Jeton d'accès",
     "form_token_hint": "Créez un jeton d'accès en lecture sur les dépôts. Forgejo/Gitea : Paramètres, Applications. GitLab : un jeton d'accès personnel avec la portée read_api.",
+    "form_email_label": "E-mail du compte Atlassian",
+    "form_token_hint_bitbucket": "Créez un jeton d'API Atlassian avec la portée read:user:bitbucket (id.atlassian.com, Sécurité, Jetons d'API).",
+    "webhook_setup_bitbucket": "Dans chaque dépôt Bitbucket, ouvrez Repository settings, Webhooks, puis ajoutez un webhook avec l'URL et le secret ci-dessous. Activez les déclencheurs Pull request (Created, Updated, Merged, Declined) et Build status (Created, Updated).",
     "connect": "Connecter",
     "connecting": "Connexion...",
     "disconnect": "Déconnecter",
@@ -860,7 +863,7 @@
     "rotate_confirm_action": "Régénérer",
     "rotating": "Régénération...",
     "toast_rotate_failed": "Impossible de régénérer le secret du webhook",
-    "hosts_hint": "GitLab, Gitea ou Forgejo.",
+    "hosts_hint": "GitLab, Gitea, Forgejo ou Bitbucket Cloud.",
     "connect_another": "Connecter une autre instance",
     "connection_actions": "Actions pour {{url}}",
     "webhook_done": "C'est enregistré"

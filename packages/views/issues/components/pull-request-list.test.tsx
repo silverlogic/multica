@@ -243,6 +243,7 @@ describe("PullRequestList sidebar rows", () => {
     ["forgejo", "passed", "Checks passed"],
     ["gitea", "pending", "2/3"],
     ["gitlab", "failed", "1/3 failed"],
+    ["bitbucket", "passed", "Checks passed"],
   ] as const)("preserves %s legacy %s check status", async (provider, conclusion, expected) => {
     mockPRs = [
       makePR({

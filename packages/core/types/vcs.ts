@@ -1,18 +1,19 @@
 /**
- * Token-based Git provider integration types (Forgejo, Gitea, GitLab). Unlike
- * GitHub there is no App/installation model: each workspace stores a
- * token-based connection to a provider instance. Pull requests mirrored from any
- * of these providers surface through the shared GitHubPullRequest shape, tagged
- * with the matching `provider`.
+ * Token-based Git provider integration types (Forgejo, Gitea, GitLab,
+ * Bitbucket Cloud). Unlike GitHub there is no App/installation model: each
+ * workspace stores a token-based connection to a provider instance. Pull
+ * requests mirrored from any of these providers surface through the shared
+ * GitHubPullRequest shape, tagged with the matching `provider`.
  */
 
-export type VCSProvider = "forgejo" | "gitea" | "gitlab";
+export type VCSProvider = "forgejo" | "gitea" | "gitlab" | "bitbucket";
 
 export interface VCSConnection {
   id: string;
   workspace_id: string;
   provider: VCSProvider;
-  /** Instance base URL, e.g. https://forgejo.example.com (no trailing slash). */
+  /** Instance base URL, e.g. https://forgejo.example.com (no trailing slash).
+   * Always https://bitbucket.org for Bitbucket Cloud. */
   instance_url: string;
   /** Login (user or org) the stored access token authenticates as. */
   account_login: string;
@@ -40,13 +41,17 @@ export interface ListVCSConnectionsResponse {
 
 export interface ConnectVCSRequest {
   provider: VCSProvider;
+  /** Optional for Bitbucket Cloud, whose site is fixed. */
   instance_url: string;
   access_token: string;
+  /** Atlassian account email the Bitbucket API token belongs to (required for
+   * Bitbucket, ignored by the other providers). */
+  account_email?: string;
 }
 
 export interface ConnectVCSResponse extends VCSConnection {
   /** One-time plaintext webhook secret to paste into the provider (HMAC secret
-   * for Forgejo/Gitea, X-Gitlab-Token value for GitLab). Not retrievable
-   * afterwards (stored encrypted); reconnecting rotates it. */
+   * for Forgejo/Gitea/Bitbucket, X-Gitlab-Token value for GitLab). Not
+   * retrievable afterwards (stored encrypted); reconnecting rotates it. */
   webhook_secret: string;
 }
