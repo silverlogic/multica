@@ -69,7 +69,7 @@ func (h *Handler) HandleJiraWebhook(w http.ResponseWriter, r *http.Request) {
 
 	switch ev.Kind {
 	case jira.EventIssueCreated, jira.EventIssueUpdated:
-		h.syncJiraIssue(r.Context(), conn, ev)
+		h.syncJiraIssue(r.Context(), conn, h.resolveJiraProperties(r.Context(), conn), ev)
 	default:
 		// Acknowledge unmodelled events so Jira doesn't flag the hook.
 	}
@@ -91,9 +91,11 @@ const (
 // issue. It is the single create-or-sync path shared by the webhook handler
 // and the pull-based sync endpoint. First sighting of a Jira issue key
 // creates the Multica issue and records the link; subsequent sightings
-// update the mirrored title and description. Thin payloads (no summary) are
-// enriched via the Jira REST client using the connection's stored API token.
-func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, ev jira.IssueEvent) jiraSyncOutcome {
+// update the mirrored title and description. Both also fill the Jira key and
+// link properties in props (see jira_properties.go). Thin payloads (no
+// summary) are enriched via the Jira REST client using the connection's
+// stored API token.
+func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, props jiraProperties, ev jira.IssueEvent) jiraSyncOutcome {
 	if ev.IssueKey == "" {
 		slog.Warn("jira: issue event missing key")
 		return jiraSyncSkipped
@@ -149,11 +151,19 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, ev 
 			h.touchJiraIssueLink(ctx, conn, ev, link.MulticaIssueID, "error")
 			return jiraSyncSkipped
 		}
+		issue, propsChanged := h.writeJiraPropertyValues(ctx, issue, props.values(conn.BaseUrl, ev.IssueKey))
 		h.touchJiraIssueLink(ctx, conn, ev, issue.ID, "synced")
 		prefix := h.getIssuePrefix(ctx, conn.WorkspaceID)
 		h.publish(protocol.EventIssueUpdated, workspaceID, "system", "", map[string]any{
 			"issue": issueToResponse(issue, prefix),
 		})
+		if propsChanged {
+			h.publish(protocol.EventIssuePropertiesChanged, workspaceID, "system", "", map[string]any{
+				"issue_id":       uuidToString(issue.ID),
+				"properties":     parseIssueProperties(issue.Properties),
+				"issue_revision": issue.Revision,
+			})
+		}
 		return jiraSyncUpdated
 	case errors.Is(err, pgx.ErrNoRows):
 		// First delivery for this Jira issue → create the mirrored issue.
@@ -163,7 +173,7 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, ev 
 			slog.Warn("jira: connection has no connected_by user; cannot create mirrored issue", "key", ev.IssueKey)
 			return jiraSyncSkipped
 		}
-		res, err := h.IssueService.Create(ctx, service.IssueCreateParams{
+		params := service.IssueCreateParams{
 			WorkspaceID:    conn.WorkspaceID,
 			Title:          ev.Summary,
 			Description:    ptrToText(strPtrOrNil(ev.Description)),
@@ -173,8 +183,17 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, ev 
 			CreatorID:      conn.ConnectedByID,
 			OriginType:     strToText("jira"),
 			OriginID:       conn.ID,
+			Properties:     props.values(conn.BaseUrl, ev.IssueKey),
 			AllowDuplicate: true, // the Jira key, not the title, is identity
-		}, service.IssueCreateOpts{Platform: "jira"})
+		}
+		res, err := h.IssueService.Create(ctx, params, service.IssueCreateOpts{Platform: "jira"})
+		var propErr *service.IssuePropertyValidationError
+		if err != nil && (errors.As(err, &propErr) || errors.Is(err, service.ErrIssuePropertiesTooLarge)) {
+			// A definition archived since resolve must not block the import.
+			slog.Warn("jira: mirrored issue properties rejected; creating without them", "key", ev.IssueKey, "err", err)
+			params.Properties = nil
+			res, err = h.IssueService.Create(ctx, params, service.IssueCreateOpts{Platform: "jira"})
+		}
 		if err != nil {
 			slog.Warn("jira: create mirrored issue failed", "key", ev.IssueKey, "err", err)
 			return jiraSyncSkipped

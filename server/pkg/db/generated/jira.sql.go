@@ -40,7 +40,7 @@ func (q *Queries) DeleteJiraConnection(ctx context.Context, arg DeleteJiraConnec
 }
 
 const getJiraConnectionByID = `-- name: GetJiraConnectionByID :one
-SELECT id, workspace_id, base_url, account_email, api_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at, jql FROM jira_connection
+SELECT id, workspace_id, base_url, account_email, api_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at, jql, key_property_id, link_property_id FROM jira_connection
 WHERE id = $1
 `
 
@@ -58,6 +58,8 @@ func (q *Queries) GetJiraConnectionByID(ctx context.Context, id pgtype.UUID) (Ji
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Jql,
+		&i.KeyPropertyID,
+		&i.LinkPropertyID,
 	)
 	return i, err
 }
@@ -96,7 +98,7 @@ func (q *Queries) GetJiraIssueLink(ctx context.Context, arg GetJiraIssueLinkPara
 
 const listJiraConnectionsByWorkspace = `-- name: ListJiraConnectionsByWorkspace :many
 
-SELECT id, workspace_id, base_url, account_email, api_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at, jql FROM jira_connection
+SELECT id, workspace_id, base_url, account_email, api_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at, jql, key_property_id, link_property_id FROM jira_connection
 WHERE workspace_id = $1
 ORDER BY created_at ASC
 `
@@ -124,6 +126,8 @@ func (q *Queries) ListJiraConnectionsByWorkspace(ctx context.Context, workspaceI
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Jql,
+			&i.KeyPropertyID,
+			&i.LinkPropertyID,
 		); err != nil {
 			return nil, err
 		}
@@ -133,6 +137,31 @@ func (q *Queries) ListJiraConnectionsByWorkspace(ctx context.Context, workspaceI
 		return nil, err
 	}
 	return items, nil
+}
+
+const setJiraConnectionPropertyIDs = `-- name: SetJiraConnectionPropertyIDs :exec
+UPDATE jira_connection SET
+    key_property_id  = $3,
+    link_property_id = $4,
+    updated_at       = now()
+WHERE id = $1 AND workspace_id = $2
+`
+
+type SetJiraConnectionPropertyIDsParams struct {
+	ID             pgtype.UUID `json:"id"`
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	KeyPropertyID  pgtype.UUID `json:"key_property_id"`
+	LinkPropertyID pgtype.UUID `json:"link_property_id"`
+}
+
+func (q *Queries) SetJiraConnectionPropertyIDs(ctx context.Context, arg SetJiraConnectionPropertyIDsParams) error {
+	_, err := q.db.Exec(ctx, setJiraConnectionPropertyIDs,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.KeyPropertyID,
+		arg.LinkPropertyID,
+	)
+	return err
 }
 
 const syncIssueFromJira = `-- name: SyncIssueFromJira :one
@@ -228,7 +257,7 @@ ON CONFLICT (workspace_id, base_url) DO UPDATE SET
     connected_by_id          = EXCLUDED.connected_by_id,
     jql                      = EXCLUDED.jql,
     updated_at               = now()
-RETURNING id, workspace_id, base_url, account_email, api_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at, jql
+RETURNING id, workspace_id, base_url, account_email, api_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at, jql, key_property_id, link_property_id
 `
 
 type UpsertJiraConnectionParams struct {
@@ -265,6 +294,8 @@ func (q *Queries) UpsertJiraConnection(ctx context.Context, arg UpsertJiraConnec
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Jql,
+		&i.KeyPropertyID,
+		&i.LinkPropertyID,
 	)
 	return i, err
 }

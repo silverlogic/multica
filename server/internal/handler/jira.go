@@ -289,6 +289,7 @@ func (h *Handler) SyncJiraConnection(w http.ResponseWriter, r *http.Request) {
 
 	var resp JiraSyncResponse
 	resp.Total = len(issues)
+	props := h.resolveJiraProperties(r.Context(), conn)
 	for _, issue := range issues {
 		ev := jira.IssueEvent{
 			Kind:        jira.EventIssueUpdated,
@@ -297,7 +298,7 @@ func (h *Handler) SyncJiraConnection(w http.ResponseWriter, r *http.Request) {
 			Summary:     issue.Summary,
 			Description: issue.Description,
 		}
-		switch h.syncJiraIssue(r.Context(), conn, ev) {
+		switch h.syncJiraIssue(r.Context(), conn, props, ev) {
 		case jiraSyncCreated:
 			resp.Created++
 		case jiraSyncUpdated:

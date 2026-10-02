@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -828,22 +829,28 @@ func (h *Handler) DeleteIssueProperty(w http.ResponseWriter, r *http.Request) {
 // definition creates/unarchives against each other (the 20-active cap and
 // MAX(position)+1 are read-then-write). Locks are transaction-scoped.
 func (h *Handler) withPropertyLock(r *http.Request, lockKeys []string, fn func(q *db.Queries) error) error {
-	tx, err := h.beginWakeupWrite(r.Context())
+	return h.withPropertyLockCtx(r.Context(), lockKeys, fn)
+}
+
+// withPropertyLockCtx is withPropertyLock for callers without a request,
+// such as the Jira import writing its key/link properties.
+func (h *Handler) withPropertyLockCtx(ctx context.Context, lockKeys []string, fn func(q *db.Queries) error) error {
+	tx, err := h.beginWakeupWrite(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(r.Context())
+	defer tx.Rollback(ctx)
 	// Callers pass keys in a fixed global order (workspace before property)
 	// so overlapping lock sets cannot deadlock.
 	for _, key := range lockKeys {
-		if _, err := tx.Exec(r.Context(), "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key); err != nil {
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key); err != nil {
 			return err
 		}
 	}
 	if err := fn(h.Queries.WithTx(tx)); err != nil {
 		return err
 	}
-	return tx.Commit(r.Context())
+	return tx.Commit(ctx)
 }
 
 // ---------------------------------------------------------------------------

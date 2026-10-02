@@ -17,6 +17,12 @@ ORDER BY p.position ASC, LOWER(p.name) ASC;
 SELECT * FROM issue_property
 WHERE id = $1 AND workspace_id = $2;
 
+-- name: GetIssuePropertyByName :one
+-- Case-insensitive, archived definitions included — the same scope as the
+-- idx_issue_property_ws_name uniqueness the lookup mirrors.
+SELECT * FROM issue_property
+WHERE workspace_id = $1 AND LOWER(name) = LOWER(sqlc.arg('name')::text);
+
 -- name: CountActiveIssueProperties :one
 SELECT COUNT(*) FROM issue_property
 WHERE workspace_id = $1 AND archived_at IS NULL;

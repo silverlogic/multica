@@ -99,3 +99,10 @@ FROM (
 ) AS changed
 WHERE i.id = changed.id
 RETURNING i.*;
+
+-- name: SetJiraConnectionPropertyIDs :exec
+UPDATE jira_connection SET
+    key_property_id  = sqlc.narg('key_property_id'),
+    link_property_id = sqlc.narg('link_property_id'),
+    updated_at       = now()
+WHERE id = $1 AND workspace_id = $2;

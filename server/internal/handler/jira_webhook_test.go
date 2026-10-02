@@ -91,9 +91,16 @@ func seedJiraConnection(t *testing.T, ctx context.Context, box *secretbox.Box, b
 }
 
 func cleanupJira(ctx context.Context) {
-	testPool.Exec(ctx, `DELETE FROM activity_log WHERE issue_id IN (SELECT multica_issue_id FROM jira_issue_link WHERE workspace_id = $1)`, testWorkspaceID)
-	testPool.Exec(ctx, `DELETE FROM issue WHERE id IN (SELECT multica_issue_id FROM jira_issue_link WHERE workspace_id = $1)`, testWorkspaceID)
+	// origin_type also catches issues whose links went with a deleted connection.
+	testPool.Exec(ctx, `DELETE FROM activity_log WHERE issue_id IN (SELECT multica_issue_id FROM jira_issue_link WHERE workspace_id = $1)
+		OR issue_id IN (SELECT id FROM issue WHERE workspace_id = $1 AND origin_type = 'jira')`, testWorkspaceID)
+	testPool.Exec(ctx, `DELETE FROM issue WHERE id IN (SELECT multica_issue_id FROM jira_issue_link WHERE workspace_id = $1)
+		OR (workspace_id = $1 AND origin_type = 'jira')`, testWorkspaceID)
 	testPool.Exec(ctx, `DELETE FROM jira_issue_link WHERE workspace_id = $1`, testWorkspaceID)
+	testPool.Exec(ctx, `DELETE FROM issue_property WHERE workspace_id = $1 AND (
+		LOWER(name) IN ('jira key', 'jira link')
+		OR id IN (SELECT key_property_id FROM jira_connection WHERE workspace_id = $1)
+		OR id IN (SELECT link_property_id FROM jira_connection WHERE workspace_id = $1))`, testWorkspaceID)
 	testPool.Exec(ctx, `DELETE FROM jira_connection WHERE workspace_id = $1`, testWorkspaceID)
 }
 
