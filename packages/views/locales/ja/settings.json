@@ -879,6 +879,7 @@
     "disconnecting": "解除中...",
     "sync_now": "今すぐ同期",
     "syncing": "同期中...",
+    "sync_behavior": "同期のたびに、タスクのタイトルと説明は Jira の内容で上書きされ、Jira のキーとリンクが記録されます。ステータスと優先度は Jira で変更されたときだけ更新されるため、Multica で行った変更はそれまで保持されます。",
     "not_configured": "このサーバーでは Jira 連携が設定されていません。管理者に次の設定を依頼してください:",
     "contact_admin": "ワークスペースの管理者に Jira サイトの接続を依頼してください。",
     "webhook_setup_title": "Jira で設定を完了",

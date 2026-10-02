@@ -883,6 +883,7 @@
     "disconnecting": "Disconnecting...",
     "sync_now": "Sync now",
     "syncing": "Syncing...",
+    "sync_behavior": "Each sync overwrites the issue's title and description with Jira's and records its Jira key and link. Status and priority change only when they change in Jira, so edits made in Multica stay until then.",
     "not_configured": "Jira integration is not configured on this server. Ask an administrator to set",
     "contact_admin": "Ask a workspace admin to connect a Jira site.",
     "webhook_setup_title": "Finish setup in Jira",

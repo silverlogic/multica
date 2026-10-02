@@ -920,6 +920,7 @@
     "disconnecting": "해제 중...",
     "sync_now": "지금 동기화",
     "syncing": "동기화 중...",
+    "sync_behavior": "동기화할 때마다 태스크의 제목과 설명을 Jira 내용으로 덮어쓰고 Jira 키와 링크를 기록합니다. 상태와 우선순위는 Jira에서 바뀔 때만 변경되므로, Multica에서 한 변경은 그때까지 유지됩니다.",
     "not_configured": "이 서버에는 Jira 통합이 구성되어 있지 않습니다. 관리자에게 다음 설정을 요청하세요:",
     "contact_admin": "워크스페이스 관리자에게 Jira 사이트 연결을 요청하세요.",
     "webhook_setup_title": "Jira에서 설정 완료",

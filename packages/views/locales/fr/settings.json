@@ -883,6 +883,7 @@
     "disconnecting": "Déconnexion...",
     "sync_now": "Synchroniser",
     "syncing": "Synchronisation...",
+    "sync_behavior": "Chaque synchronisation remplace le titre et la description de la tâche par ceux de Jira et enregistre sa clé et son lien Jira. Le statut et la priorité ne changent que lorsqu'ils changent dans Jira : les modifications faites dans Multica sont conservées jusque-là.",
     "not_configured": "L'intégration Jira n'est pas configurée sur ce serveur. Demandez à un administrateur de définir",
     "contact_admin": "Demandez à un administrateur de l'espace de travail de connecter un site Jira.",
     "webhook_setup_title": "Terminez la configuration dans Jira",

@@ -188,6 +188,7 @@ export function JiraTab() {
               </CardContent>
             </Card>
           ))}
+          <p className="text-caption text-muted-foreground">{t(($) => $.jira.sync_behavior)}</p>
         </div>
       )}
 

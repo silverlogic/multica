@@ -242,6 +242,14 @@ describe("Settings JiraTab", () => {
     });
   });
 
+  it("explains which fields a sync overwrites once a site is connected", () => {
+    connectionsRef.current.connections = [CONNECTION];
+    renderTab();
+    expect(
+      screen.getByText(/Status and priority change only when they change in Jira/),
+    ).toBeInTheDocument();
+  });
+
   it("syncs a connection and toasts the created/updated summary", async () => {
     const user = userEvent.setup();
     connectionsRef.current.connections = [CONNECTION];
