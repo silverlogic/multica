@@ -141,6 +141,39 @@ func (q *Queries) ListJiraConnectionsByWorkspace(ctx context.Context, workspaceI
 	return items, nil
 }
 
+const listJiraLinkedIssueIDsByKey = `-- name: ListJiraLinkedIssueIDsByKey :many
+SELECT DISTINCT multica_issue_id FROM jira_issue_link
+WHERE workspace_id = $1 AND jira_issue_key = $2
+`
+
+type ListJiraLinkedIssueIDsByKeyParams struct {
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	JiraIssueKey string      `json:"jira_issue_key"`
+}
+
+// The Multica issues mirrored from a Jira key in a workspace, for resolving a
+// Jira key a pull request mentions. More than one row means two connected
+// Jira sites share the key, which callers treat as ambiguous.
+func (q *Queries) ListJiraLinkedIssueIDsByKey(ctx context.Context, arg ListJiraLinkedIssueIDsByKeyParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listJiraLinkedIssueIDsByKey, arg.WorkspaceID, arg.JiraIssueKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var multica_issue_id pgtype.UUID
+		if err := rows.Scan(&multica_issue_id); err != nil {
+			return nil, err
+		}
+		items = append(items, multica_issue_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveIssueFromJira = `-- name: MoveIssueFromJira :one
 UPDATE issue AS i SET
     status = $3::text,

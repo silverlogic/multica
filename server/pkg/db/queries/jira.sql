@@ -143,3 +143,10 @@ WHERE i.id = $1
   AND i.priority = sqlc.arg('expected_priority')::text
   AND (i.status <> sqlc.arg('target_status')::text OR i.priority <> sqlc.arg('target_priority')::text)
 RETURNING i.*;
+
+-- name: ListJiraLinkedIssueIDsByKey :many
+-- The Multica issues mirrored from a Jira key in a workspace, for resolving a
+-- Jira key a pull request mentions. More than one row means two connected
+-- Jira sites share the key, which callers treat as ambiguous.
+SELECT DISTINCT multica_issue_id FROM jira_issue_link
+WHERE workspace_id = $1 AND jira_issue_key = $2;

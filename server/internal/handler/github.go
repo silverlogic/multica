@@ -65,7 +65,7 @@ type GitHubInstallationResponse struct {
 type GitHubPullRequestResponse struct {
 	ID string `json:"id"`
 	// Provider is the Git provider this PR was mirrored from: "github", "forgejo",
-	// "gitea", or "gitlab". The frontend uses it to pick the host icon and
+	// "gitea", "gitlab", or "bitbucket". The frontend uses it to pick the host icon and
 	// label (e.g. GitLab "merge request").
 	Provider        string  `json:"provider"`
 	WorkspaceID     string  `json:"workspace_id"`
@@ -293,7 +293,7 @@ func currentGitHubSnapshotAvailable(
 
 // aggregateChecksConclusion collapses per-PR commit-status counts into a
 // single coarse status. Still used by the self-hosted VCS provider path
-// (Forgejo / Gitea / GitLab), which mirrors commit statuses via webhook rather
+// (Forgejo / Gitea / GitLab / Bitbucket), which mirrors commit statuses via webhook rather
 // than fetching a GitHub-style API snapshot:
 //   - any failed status wins ("failed");
 //   - any not-yet-completed status makes the PR "pending";
@@ -997,7 +997,7 @@ func (h *Handler) ListPullRequestsForIssue(w http.ResponseWriter, r *http.Reques
 				row.SnapshotHeadSha == row.HeadSha,
 		)
 	}
-	// PRs from token-based providers (Forgejo / Gitea / GitLab) share the same
+	// PRs from token-based providers (Forgejo / Gitea / GitLab / Bitbucket) share the same
 	// card list. They live in their own provider-tagged tables, so they merge
 	// in here mapped to the same response shape; the combined list is re-sorted
 	// newest-first.
@@ -1399,19 +1399,13 @@ func (h *Handler) resolvePRLinkPolicy(ctx context.Context, insts []db.GithubInst
 		}
 		prefix := issuePrefixForWorkspace(ws)
 		for _, id := range idents {
-			number, ok := issueNumberForPrefix(id, prefix)
-			if !ok {
-				continue
-			}
-			if _, err := h.Queries.GetIssueByNumber(ctx, db.GetIssueByNumberParams{
-				WorkspaceID: inst.WorkspaceID,
-				Number:      number,
-			}); err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					continue
-				}
+			_, found, err := h.resolveClaimedIssue(ctx, inst.WorkspaceID, prefix, id)
+			if err != nil {
 				return indeterminate("github: cannot resolve identifier in bound workspace, leaving links unchanged for this delivery",
 					"err", err, "identifier", id, "workspace_id", uuidToString(inst.WorkspaceID))
+			}
+			if !found {
+				continue
 			}
 			resolvers[id] = append(resolvers[id], resolver{workspaceID: uuidToString(inst.WorkspaceID), autoLink: autoLink})
 		}
@@ -1920,18 +1914,49 @@ func issueNumberForPrefix(identifier, prefix string) (int32, bool) {
 // "PREFIX-NUMBER" identifier. Returns the row + true if the prefix matches
 // the workspace's configured prefix and the number resolves to a real issue.
 func (h *Handler) lookupIssueByIdentifier(ctx context.Context, workspaceID pgtype.UUID, prefix, identifier string) (db.Issue, bool) {
-	number, ok := issueNumberForPrefix(identifier, prefix)
-	if !ok {
-		return db.Issue{}, false
-	}
-	issue, err := h.Queries.GetIssueByNumber(ctx, db.GetIssueByNumberParams{
-		WorkspaceID: workspaceID,
-		Number:      number,
-	})
+	issue, found, err := h.resolveClaimedIssue(ctx, workspaceID, prefix, identifier)
 	if err != nil {
+		slog.Warn("pr link: resolve identifier failed", "identifier", identifier, "err", err)
 		return db.Issue{}, false
 	}
-	return issue, true
+	return issue, found
+}
+
+// resolveClaimedIssue resolves an identifier a PR claims to an issue in the
+// workspace: first as a Multica identifier (PREFIX-N), then as the key of a
+// Jira issue mirrored into the workspace ("BA-1688"), so branches and titles
+// named after Jira tickets link too. A Jira key mirrored to two issues (two
+// connected sites sharing it) resolves to nothing. found=false with a nil
+// error means no match.
+func (h *Handler) resolveClaimedIssue(ctx context.Context, workspaceID pgtype.UUID, prefix, identifier string) (db.Issue, bool, error) {
+	if number, ok := issueNumberForPrefix(identifier, prefix); ok {
+		issue, err := h.Queries.GetIssueByNumber(ctx, db.GetIssueByNumberParams{
+			WorkspaceID: workspaceID,
+			Number:      number,
+		})
+		if err == nil {
+			return issue, true, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return db.Issue{}, false, err
+		}
+		// No such Multica issue; the prefix may also be a Jira project key.
+	}
+	ids, err := h.Queries.ListJiraLinkedIssueIDsByKey(ctx, db.ListJiraLinkedIssueIDsByKeyParams{
+		WorkspaceID:  workspaceID,
+		JiraIssueKey: identifier,
+	})
+	if err != nil || len(ids) != 1 {
+		return db.Issue{}, false, err
+	}
+	issue, err := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: ids[0], WorkspaceID: workspaceID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Issue{}, false, nil // mirrored issue deleted in Multica
+	}
+	if err != nil {
+		return db.Issue{}, false, err
+	}
+	return issue, true, nil
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
