@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/integrations/jira"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 func runJiraSync(t *testing.T, conn db.JiraConnection) JiraSyncResponse {
@@ -81,10 +83,17 @@ func TestJiraProperties_FilledOnImport(t *testing.T) {
 	testHandler.JiraClient = mock
 	conn := seedJiraConnection(t, ctx, box, "https://acme.atlassian.net")
 	t.Cleanup(func() { cleanupJira(ctx) })
+	created := subscribePropertyCreated()
 
 	runJiraSync(t, conn)
 	keyDef := jiraPropertyByName(t, "Jira key")
 	linkDef := jiraPropertyByName(t, "Jira link")
+	// Open clients refresh their cached property catalog from this event.
+	for _, def := range []db.IssueProperty{keyDef, linkDef} {
+		if !created[uuidToString(def.ID)] {
+			t.Errorf("no property:created event for %q", def.Name)
+		}
+	}
 	if keyDef.Type != "text" || linkDef.Type != "url" {
 		t.Fatalf("types = %q/%q, want text/url", keyDef.Type, linkDef.Type)
 	}
@@ -238,4 +247,21 @@ func TestJiraProperties_NameTakenByOtherType(t *testing.T) {
 	if got := props[uuidToString(linkDef.ID)]; got != "https://acme.atlassian.net/browse/OPS-1" {
 		t.Errorf("Jira link = %v, want the browse URL", got)
 	}
+}
+
+// subscribePropertyCreated records the ids of property:created events. Bus
+// handlers are never unsubscribed in this suite; Publish is synchronous, so
+// the map is filled by the time a sync returns.
+func subscribePropertyCreated() map[string]bool {
+	seen := map[string]bool{}
+	testHandler.Bus.Subscribe(protocol.EventPropertyCreated, func(e events.Event) {
+		payload, ok := e.Payload.(map[string]any)
+		if !ok {
+			return
+		}
+		if resp, ok := payload["property"].(PropertyResponse); ok {
+			seen[resp.ID] = true
+		}
+	})
+	return seen
 }

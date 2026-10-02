@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/issueproperty"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Imported Jira issues carry their Jira key and browse URL in two workspace
@@ -135,7 +136,15 @@ func (h *Handler) createJiraProperty(ctx context.Context, workspaceID pgtype.UUI
 	if err != nil && isUniqueViolation(err) {
 		return h.Queries.GetIssuePropertyByName(ctx, db.GetIssuePropertyByNameParams{WorkspaceID: workspaceID, Name: field.name})
 	}
-	return created, err
+	if err != nil {
+		return created, err
+	}
+	// Clients cache the property catalog until this event; without it an
+	// open tab never shows the new key/link values.
+	h.publish(protocol.EventPropertyCreated, uuidToString(workspaceID), "system", "", map[string]any{
+		"property": propertyToResponse(created, 0),
+	})
+	return created, nil
 }
 
 // values returns the property values for one Jira issue, keyed by
