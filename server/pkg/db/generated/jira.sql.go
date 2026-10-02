@@ -66,7 +66,7 @@ func (q *Queries) GetJiraConnectionByID(ctx context.Context, id pgtype.UUID) (Ji
 
 const getJiraIssueLink = `-- name: GetJiraIssueLink :one
 
-SELECT id, workspace_id, connection_id, jira_issue_key, jira_issue_id, multica_issue_id, sync_status, last_inbound_at, created_at, updated_at FROM jira_issue_link
+SELECT id, workspace_id, connection_id, jira_issue_key, jira_issue_id, multica_issue_id, sync_status, last_inbound_at, created_at, updated_at, jira_status, jira_priority FROM jira_issue_link
 WHERE connection_id = $1 AND jira_issue_key = $2
 `
 
@@ -92,6 +92,8 @@ func (q *Queries) GetJiraIssueLink(ctx context.Context, arg GetJiraIssueLinkPara
 		&i.LastInboundAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.JiraStatus,
+		&i.JiraPriority,
 	)
 	return i, err
 }
@@ -137,6 +139,94 @@ func (q *Queries) ListJiraConnectionsByWorkspace(ctx context.Context, workspaceI
 		return nil, err
 	}
 	return items, nil
+}
+
+const moveIssueFromJira = `-- name: MoveIssueFromJira :one
+UPDATE issue AS i SET
+    status = $3::text,
+    priority = $4::text,
+    duplicate_of_issue_id = CASE
+        WHEN i.status <> $3::text THEN NULL
+        ELSE i.duplicate_of_issue_id
+    END,
+    position = CASE
+        WHEN i.status <> $3::text THEN (
+            SELECT COALESCE(MIN(target.position), 0) - 1
+            FROM issue AS target
+            WHERE target.workspace_id = i.workspace_id
+              AND target.status = $3::text
+        )
+        ELSE i.position
+    END,
+    revision = i.revision + 1,
+    last_activity_at = GREATEST(COALESCE(i.last_activity_at, i.updated_at), now()),
+    updated_at = now()
+WHERE i.id = $1
+  AND i.workspace_id = $2
+  AND i.status = $5::text
+  AND i.priority = $6::text
+  AND (i.status <> $3::text OR i.priority <> $4::text)
+RETURNING i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.triage_state, i.duplicate_of_issue_id
+`
+
+type MoveIssueFromJiraParams struct {
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+	TargetStatus     string      `json:"target_status"`
+	TargetPriority   string      `json:"target_priority"`
+	ExpectedStatus   string      `json:"expected_status"`
+	ExpectedPriority string      `json:"expected_priority"`
+}
+
+// Conditional status/priority write for inbound Jira sync. It lands only if
+// the issue still has the status and priority the sync read, so an edit made
+// in Multica meanwhile wins (the link keeps the old Jira values and the next
+// sync retries). A status move repositions to the top of the target column
+// and clears a duplicate mark, like UpdateIssueStatus; a priority-only write
+// keeps both.
+func (q *Queries) MoveIssueFromJira(ctx context.Context, arg MoveIssueFromJiraParams) (Issue, error) {
+	row := q.db.QueryRow(ctx, moveIssueFromJira,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.TargetStatus,
+		arg.TargetPriority,
+		arg.ExpectedStatus,
+		arg.ExpectedPriority,
+	)
+	var i Issue
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeType,
+		&i.AssigneeID,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.ParentIssueID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Position,
+		&i.DueDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Number,
+		&i.ProjectID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.StartDate,
+		&i.Metadata,
+		&i.Stage,
+		&i.Properties,
+		&i.Revision,
+		&i.LastActivityAt,
+		&i.TriageState,
+		&i.DuplicateOfIssueID,
+	)
+	return i, err
 }
 
 const setJiraConnectionPropertyIDs = `-- name: SetJiraConnectionPropertyIDs :exec
@@ -303,16 +393,18 @@ func (q *Queries) UpsertJiraConnection(ctx context.Context, arg UpsertJiraConnec
 const upsertJiraIssueLink = `-- name: UpsertJiraIssueLink :one
 INSERT INTO jira_issue_link (
     workspace_id, connection_id, jira_issue_key, jira_issue_id,
-    multica_issue_id, sync_status, last_inbound_at
+    multica_issue_id, sync_status, last_inbound_at, jira_status, jira_priority
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, now()
+    $1, $2, $3, $4, $5, $6, now(), $7, $8
 )
 ON CONFLICT (connection_id, jira_issue_key) DO UPDATE SET
     jira_issue_id   = EXCLUDED.jira_issue_id,
     sync_status     = EXCLUDED.sync_status,
+    jira_status     = COALESCE(EXCLUDED.jira_status, jira_issue_link.jira_status),
+    jira_priority   = COALESCE(EXCLUDED.jira_priority, jira_issue_link.jira_priority),
     last_inbound_at = now(),
     updated_at      = now()
-RETURNING id, workspace_id, connection_id, jira_issue_key, jira_issue_id, multica_issue_id, sync_status, last_inbound_at, created_at, updated_at
+RETURNING id, workspace_id, connection_id, jira_issue_key, jira_issue_id, multica_issue_id, sync_status, last_inbound_at, created_at, updated_at, jira_status, jira_priority
 `
 
 type UpsertJiraIssueLinkParams struct {
@@ -322,12 +414,16 @@ type UpsertJiraIssueLinkParams struct {
 	JiraIssueID    string      `json:"jira_issue_id"`
 	MulticaIssueID pgtype.UUID `json:"multica_issue_id"`
 	SyncStatus     string      `json:"sync_status"`
+	JiraStatus     pgtype.Text `json:"jira_status"`
+	JiraPriority   pgtype.Text `json:"jira_priority"`
 }
 
 // One link per (connection, jira issue key). A webhook redelivery or repeat
 // event refreshes the sync bookkeeping in place; the multica_issue_id is
 // stable after the first insert (the Multica issue is created exactly once
 // per Jira issue).
+// jira_status / jira_priority record the values last seen from Jira; a NULL
+// argument (the event did not carry the field) keeps the stored value.
 func (q *Queries) UpsertJiraIssueLink(ctx context.Context, arg UpsertJiraIssueLinkParams) (JiraIssueLink, error) {
 	row := q.db.QueryRow(ctx, upsertJiraIssueLink,
 		arg.WorkspaceID,
@@ -336,6 +432,8 @@ func (q *Queries) UpsertJiraIssueLink(ctx context.Context, arg UpsertJiraIssueLi
 		arg.JiraIssueID,
 		arg.MulticaIssueID,
 		arg.SyncStatus,
+		arg.JiraStatus,
+		arg.JiraPriority,
 	)
 	var i JiraIssueLink
 	err := row.Scan(
@@ -349,6 +447,8 @@ func (q *Queries) UpsertJiraIssueLink(ctx context.Context, arg UpsertJiraIssueLi
 		&i.LastInboundAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.JiraStatus,
+		&i.JiraPriority,
 	)
 	return i, err
 }

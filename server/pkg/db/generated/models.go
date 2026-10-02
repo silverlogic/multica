@@ -1084,6 +1084,8 @@ type JiraIssueLink struct {
 	LastInboundAt  pgtype.Timestamptz `json:"last_inbound_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	JiraStatus     pgtype.Text        `json:"jira_status"`
+	JiraPriority   pgtype.Text        `json:"jira_priority"`
 }
 
 type LarkBindingToken struct {

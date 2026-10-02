@@ -67,7 +67,11 @@ type IssueEvent struct {
 	// (string or ADF). Empty when the issue has none.
 	Description string
 	Status      string // raw Jira status name, e.g. "In Progress"
-	Priority    string // raw Jira priority name, e.g. "High"
+	// StatusCategory is the status's Jira category key: "new",
+	// "indeterminate" or "done". Every Jira status belongs to one, which
+	// makes it the fallback when the status name matches no Multica status.
+	StatusCategory string
+	Priority       string // raw Jira priority name, e.g. "High"
 	// Assignee identity, empty when unassigned.
 	AssigneeAccountID   string
 	AssigneeDisplayName string
@@ -76,6 +80,14 @@ type IssueEvent struct {
 	// assignee transition — the seam later PRs use for assignment-driven
 	// behavior (e.g. handing a Jira issue to a Multica agent).
 	AssigneeChanged bool
+}
+
+// statusField is a Jira status as the webhook and REST payloads carry it.
+type statusField struct {
+	Name           string `json:"name"`
+	StatusCategory struct {
+		Key string `json:"key"`
+	} `json:"statusCategory"`
 }
 
 // webhookPayload is the raw Jira webhook envelope, limited to what PR 1
@@ -88,10 +100,8 @@ type webhookPayload struct {
 		Fields struct {
 			Summary     string          `json:"summary"`
 			Description json.RawMessage `json:"description"`
-			Status      struct {
-				Name string `json:"name"`
-			} `json:"status"`
-			Priority struct {
+			Status      statusField     `json:"status"`
+			Priority    struct {
 				Name string `json:"name"`
 			} `json:"priority"`
 			Assignee *struct {
@@ -126,13 +136,14 @@ func ParseIssueEvent(body []byte) (IssueEvent, error) {
 		return IssueEvent{Kind: EventOther}, nil
 	}
 	ev := IssueEvent{
-		Kind:        kind,
-		IssueID:     d.Issue.ID,
-		IssueKey:    d.Issue.Key,
-		Summary:     d.Issue.Fields.Summary,
-		Description: DescriptionText(d.Issue.Fields.Description),
-		Status:      d.Issue.Fields.Status.Name,
-		Priority:    d.Issue.Fields.Priority.Name,
+		Kind:           kind,
+		IssueID:        d.Issue.ID,
+		IssueKey:       d.Issue.Key,
+		Summary:        d.Issue.Fields.Summary,
+		Description:    DescriptionText(d.Issue.Fields.Description),
+		Status:         d.Issue.Fields.Status.Name,
+		StatusCategory: d.Issue.Fields.Status.StatusCategory.Key,
+		Priority:       d.Issue.Fields.Priority.Name,
 	}
 	if a := d.Issue.Fields.Assignee; a != nil {
 		ev.AssigneeAccountID = a.AccountID

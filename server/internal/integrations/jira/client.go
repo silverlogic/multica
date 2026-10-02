@@ -43,7 +43,10 @@ type Issue struct {
 	Summary     string
 	Description string
 	Status      string
-	Priority    string
+	// StatusCategory is the Jira category key of Status ("new",
+	// "indeterminate" or "done"); see IssueEvent.StatusCategory.
+	StatusCategory string
+	Priority       string
 	// Assignee identity, populated by SearchIssues (webhook enrichment via
 	// GetIssue does not need it — the webhook payload carries its own).
 	AssigneeAccountID   string
@@ -134,10 +137,8 @@ func (c *HTTPClient) GetIssue(ctx context.Context, baseURL, email, token, key st
 		Fields struct {
 			Summary     string          `json:"summary"`
 			Description json.RawMessage `json:"description"`
-			Status      struct {
-				Name string `json:"name"`
-			} `json:"status"`
-			Priority struct {
+			Status      statusField     `json:"status"`
+			Priority    struct {
 				Name string `json:"name"`
 			} `json:"priority"`
 		} `json:"fields"`
@@ -146,12 +147,13 @@ func (c *HTTPClient) GetIssue(ctx context.Context, baseURL, email, token, key st
 		return Issue{}, fmt.Errorf("jira: decode issue: %w", err)
 	}
 	return Issue{
-		ID:          d.ID,
-		Key:         d.Key,
-		Summary:     d.Fields.Summary,
-		Description: DescriptionText(d.Fields.Description),
-		Status:      d.Fields.Status.Name,
-		Priority:    d.Fields.Priority.Name,
+		ID:             d.ID,
+		Key:            d.Key,
+		Summary:        d.Fields.Summary,
+		Description:    DescriptionText(d.Fields.Description),
+		Status:         d.Fields.Status.Name,
+		StatusCategory: d.Fields.Status.StatusCategory.Key,
+		Priority:       d.Fields.Priority.Name,
 	}, nil
 }
 
@@ -192,10 +194,8 @@ func (c *HTTPClient) SearchIssues(ctx context.Context, baseURL, email, token, jq
 				Fields struct {
 					Summary     string          `json:"summary"`
 					Description json.RawMessage `json:"description"`
-					Status      struct {
-						Name string `json:"name"`
-					} `json:"status"`
-					Priority struct {
+					Status      statusField     `json:"status"`
+					Priority    struct {
 						Name string `json:"name"`
 					} `json:"priority"`
 					Assignee struct {
@@ -220,6 +220,7 @@ func (c *HTTPClient) SearchIssues(ctx context.Context, baseURL, email, token, jq
 				Summary:             d.Fields.Summary,
 				Description:         DescriptionText(d.Fields.Description),
 				Status:              d.Fields.Status.Name,
+				StatusCategory:      d.Fields.Status.StatusCategory.Key,
 				Priority:            d.Fields.Priority.Name,
 				AssigneeAccountID:   accountID,
 				AssigneeDisplayName: d.Fields.Assignee.DisplayName,

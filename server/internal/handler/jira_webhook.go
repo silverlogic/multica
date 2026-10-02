@@ -69,7 +69,7 @@ func (h *Handler) HandleJiraWebhook(w http.ResponseWriter, r *http.Request) {
 
 	switch ev.Kind {
 	case jira.EventIssueCreated, jira.EventIssueUpdated:
-		h.syncJiraIssue(r.Context(), conn, h.resolveJiraProperties(r.Context(), conn), ev)
+		h.syncJiraIssue(r.Context(), conn, h.prepareJiraSync(r.Context(), conn), ev)
 	default:
 		// Acknowledge unmodelled events so Jira doesn't flag the hook.
 	}
@@ -91,11 +91,11 @@ const (
 // issue. It is the single create-or-sync path shared by the webhook handler
 // and the pull-based sync endpoint. First sighting of a Jira issue key
 // creates the Multica issue and records the link; subsequent sightings
-// update the mirrored title and description. Both also fill the Jira key and
-// link properties in props (see jira_properties.go). Thin payloads (no
-// summary) are enriched via the Jira REST client using the connection's
-// stored API token.
-func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, props jiraProperties, ev jira.IssueEvent) jiraSyncOutcome {
+// update the mirrored title and description, and move status/priority when
+// Jira's changed (see jira_mapping.go). Both also fill the Jira key and link
+// properties (see jira_properties.go). Thin payloads (no summary) are
+// enriched via the Jira REST client using the connection's stored API token.
+func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, plan jiraSyncPlan, ev jira.IssueEvent) jiraSyncOutcome {
 	if ev.IssueKey == "" {
 		slog.Warn("jira: issue event missing key")
 		return jiraSyncSkipped
@@ -121,6 +121,12 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, pro
 		}
 		if ev.IssueID == "" {
 			ev.IssueID = issue.ID
+		}
+		if ev.Status == "" {
+			ev.Status, ev.StatusCategory = issue.Status, issue.StatusCategory
+		}
+		if ev.Priority == "" {
+			ev.Priority = issue.Priority
 		}
 	}
 	if ev.Summary == "" {
@@ -148,14 +154,29 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, pro
 			// divergence on the link rather than recreating the issue (the
 			// deletion was a user decision this webhook must not undo).
 			slog.Warn("jira: sync mirrored issue failed", "key", ev.IssueKey, "err", err)
-			h.touchJiraIssueLink(ctx, conn, ev, link.MulticaIssueID, "error")
+			h.touchJiraIssueLink(ctx, conn, ev, link.MulticaIssueID, "error", jiraSeen{})
 			return jiraSyncSkipped
 		}
-		issue, propsChanged := h.writeJiraPropertyValues(ctx, issue, props.values(conn.BaseUrl, ev.IssueKey))
-		h.touchJiraIssueLink(ctx, conn, ev, issue.ID, "synced")
+		issue, propsChanged := h.writeJiraPropertyValues(ctx, issue, plan.props.values(conn.BaseUrl, ev.IssueKey))
+		prev := issue
+		issue, seen := h.applyJiraStatusPriority(ctx, plan, link, issue, ev)
+		h.touchJiraIssueLink(ctx, conn, ev, issue.ID, "synced", seen)
+		statusChanged := prev.Status != issue.Status
+		if statusChanged && issue.ParentIssueID.Valid {
+			h.processChildEvents(ctx, issue.ParentIssueID)
+		}
 		prefix := h.getIssuePrefix(ctx, conn.WorkspaceID)
+		resp := issueToResponse(issue, prefix)
+		h.fillStatusCategory(ctx, conn.WorkspaceID, &resp)
 		h.publish(protocol.EventIssueUpdated, workspaceID, "system", "", map[string]any{
-			"issue": issueToResponse(issue, prefix),
+			"issue":            resp,
+			"status_changed":   statusChanged,
+			"priority_changed": prev.Priority != issue.Priority,
+			"prev_status":      prev.Status,
+			"prev_priority":    prev.Priority,
+			"creator_type":     prev.CreatorType,
+			"creator_id":       uuidToString(prev.CreatorID),
+			"source":           "jira",
 		})
 		if propsChanged {
 			h.publish(protocol.EventIssuePropertiesChanged, workspaceID, "system", "", map[string]any{
@@ -177,13 +198,13 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, pro
 			WorkspaceID:    conn.WorkspaceID,
 			Title:          ev.Summary,
 			Description:    ptrToText(strPtrOrNil(ev.Description)),
-			Status:         "todo",
-			Priority:       "none", // Jira→Multica priority mapping is PR 2
+			Status:         jiraCreateStatus(plan.statuses, ev),
+			Priority:       jiraCreatePriority(ev),
 			CreatorType:    "member",
 			CreatorID:      conn.ConnectedByID,
 			OriginType:     strToText("jira"),
 			OriginID:       conn.ID,
-			Properties:     props.values(conn.BaseUrl, ev.IssueKey),
+			Properties:     plan.props.values(conn.BaseUrl, ev.IssueKey),
 			AllowDuplicate: true, // the Jira key, not the title, is identity
 		}
 		res, err := h.IssueService.Create(ctx, params, service.IssueCreateOpts{Platform: "jira"})
@@ -198,7 +219,7 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, pro
 			slog.Warn("jira: create mirrored issue failed", "key", ev.IssueKey, "err", err)
 			return jiraSyncSkipped
 		}
-		h.touchJiraIssueLink(ctx, conn, ev, res.Issue.ID, "synced")
+		h.touchJiraIssueLink(ctx, conn, ev, res.Issue.ID, "synced", jiraSeenFromEvent(ev))
 		return jiraSyncCreated
 	default:
 		slog.Warn("jira: lookup issue link failed", "key", ev.IssueKey, "err", err)
@@ -207,7 +228,7 @@ func (h *Handler) syncJiraIssue(ctx context.Context, conn db.JiraConnection, pro
 }
 
 // touchJiraIssueLink upserts the link row's sync bookkeeping.
-func (h *Handler) touchJiraIssueLink(ctx context.Context, conn db.JiraConnection, ev jira.IssueEvent, multicaIssueID pgtype.UUID, status string) {
+func (h *Handler) touchJiraIssueLink(ctx context.Context, conn db.JiraConnection, ev jira.IssueEvent, multicaIssueID pgtype.UUID, status string, seen jiraSeen) {
 	if _, err := h.Queries.UpsertJiraIssueLink(ctx, db.UpsertJiraIssueLinkParams{
 		WorkspaceID:    conn.WorkspaceID,
 		ConnectionID:   conn.ID,
@@ -215,6 +236,8 @@ func (h *Handler) touchJiraIssueLink(ctx context.Context, conn db.JiraConnection
 		JiraIssueID:    ev.IssueID,
 		MulticaIssueID: multicaIssueID,
 		SyncStatus:     status,
+		JiraStatus:     seen.status,
+		JiraPriority:   seen.priority,
 	}); err != nil {
 		slog.Warn("jira: upsert issue link failed", "key", ev.IssueKey, "err", err)
 	}

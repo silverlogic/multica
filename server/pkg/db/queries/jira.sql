@@ -59,15 +59,19 @@ WHERE connection_id = $1 AND jira_issue_key = $2;
 -- event refreshes the sync bookkeeping in place; the multica_issue_id is
 -- stable after the first insert (the Multica issue is created exactly once
 -- per Jira issue).
+-- jira_status / jira_priority record the values last seen from Jira; a NULL
+-- argument (the event did not carry the field) keeps the stored value.
 INSERT INTO jira_issue_link (
     workspace_id, connection_id, jira_issue_key, jira_issue_id,
-    multica_issue_id, sync_status, last_inbound_at
+    multica_issue_id, sync_status, last_inbound_at, jira_status, jira_priority
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, now()
+    $1, $2, $3, $4, $5, $6, now(), sqlc.narg('jira_status'), sqlc.narg('jira_priority')
 )
 ON CONFLICT (connection_id, jira_issue_key) DO UPDATE SET
     jira_issue_id   = EXCLUDED.jira_issue_id,
     sync_status     = EXCLUDED.sync_status,
+    jira_status     = COALESCE(EXCLUDED.jira_status, jira_issue_link.jira_status),
+    jira_priority   = COALESCE(EXCLUDED.jira_priority, jira_issue_link.jira_priority),
     last_inbound_at = now(),
     updated_at      = now()
 RETURNING *;
@@ -106,3 +110,36 @@ UPDATE jira_connection SET
     link_property_id = sqlc.narg('link_property_id'),
     updated_at       = now()
 WHERE id = $1 AND workspace_id = $2;
+
+-- name: MoveIssueFromJira :one
+-- Conditional status/priority write for inbound Jira sync. It lands only if
+-- the issue still has the status and priority the sync read, so an edit made
+-- in Multica meanwhile wins (the link keeps the old Jira values and the next
+-- sync retries). A status move repositions to the top of the target column
+-- and clears a duplicate mark, like UpdateIssueStatus; a priority-only write
+-- keeps both.
+UPDATE issue AS i SET
+    status = sqlc.arg('target_status')::text,
+    priority = sqlc.arg('target_priority')::text,
+    duplicate_of_issue_id = CASE
+        WHEN i.status <> sqlc.arg('target_status')::text THEN NULL
+        ELSE i.duplicate_of_issue_id
+    END,
+    position = CASE
+        WHEN i.status <> sqlc.arg('target_status')::text THEN (
+            SELECT COALESCE(MIN(target.position), 0) - 1
+            FROM issue AS target
+            WHERE target.workspace_id = i.workspace_id
+              AND target.status = sqlc.arg('target_status')::text
+        )
+        ELSE i.position
+    END,
+    revision = i.revision + 1,
+    last_activity_at = GREATEST(COALESCE(i.last_activity_at, i.updated_at), now()),
+    updated_at = now()
+WHERE i.id = $1
+  AND i.workspace_id = $2
+  AND i.status = sqlc.arg('expected_status')::text
+  AND i.priority = sqlc.arg('expected_priority')::text
+  AND (i.status <> sqlc.arg('target_status')::text OR i.priority <> sqlc.arg('target_priority')::text)
+RETURNING i.*;

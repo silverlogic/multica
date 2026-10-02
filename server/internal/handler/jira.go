@@ -289,16 +289,19 @@ func (h *Handler) SyncJiraConnection(w http.ResponseWriter, r *http.Request) {
 
 	var resp JiraSyncResponse
 	resp.Total = len(issues)
-	props := h.resolveJiraProperties(r.Context(), conn)
+	plan := h.prepareJiraSync(r.Context(), conn)
 	for _, issue := range issues {
 		ev := jira.IssueEvent{
-			Kind:        jira.EventIssueUpdated,
-			IssueID:     issue.ID,
-			IssueKey:    issue.Key,
-			Summary:     issue.Summary,
-			Description: issue.Description,
+			Kind:           jira.EventIssueUpdated,
+			IssueID:        issue.ID,
+			IssueKey:       issue.Key,
+			Summary:        issue.Summary,
+			Description:    issue.Description,
+			Status:         issue.Status,
+			StatusCategory: issue.StatusCategory,
+			Priority:       issue.Priority,
 		}
-		switch h.syncJiraIssue(r.Context(), conn, props, ev) {
+		switch h.syncJiraIssue(r.Context(), conn, plan, ev) {
 		case jiraSyncCreated:
 			resp.Created++
 		case jiraSyncUpdated:
