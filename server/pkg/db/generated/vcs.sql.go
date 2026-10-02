@@ -351,7 +351,7 @@ ORDER BY created_at ASC
 `
 
 // =====================
-// VCS Connection (Forgejo / Gitea / GitLab)
+// VCS Connection (Forgejo / Gitea / GitLab / Bitbucket)
 // =====================
 func (q *Queries) ListVCSConnectionsByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]VcsConnection, error) {
 	rows, err := q.db.Query(ctx, listVCSConnectionsByWorkspace, workspaceID)

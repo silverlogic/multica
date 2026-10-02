@@ -174,7 +174,7 @@ const (
 	EventPullRequestUpdated        = "pull_request:updated"
 	EventPullRequestUnlinked       = "pull_request:unlinked"
 
-	// VCS integration events (Forgejo / Gitea / GitLab)
+	// VCS integration events (Forgejo / Gitea / GitLab / Bitbucket)
 	EventVCSConnectionCreated = "vcs_connection:created"
 	EventVCSConnectionDeleted = "vcs_connection:deleted"
 

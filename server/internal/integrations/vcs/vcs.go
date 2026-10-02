@@ -1,8 +1,9 @@
 // Package vcs is the provider abstraction for token-based Git providers that
 // Multica mirrors pull requests and CI status from: Forgejo, Gitea (Forgejo's
-// upstream, wire-identical), and GitLab. GitHub is intentionally NOT a vcs
-// provider — its App/installation model and check_suite CI differ enough that
-// it keeps its own handler (server/internal/handler/github.go).
+// upstream, wire-identical), GitLab, and Bitbucket Cloud. GitHub is
+// intentionally NOT a vcs provider — its App/installation model and
+// check_suite CI differ enough that it keeps its own handler
+// (server/internal/handler/github.go).
 //
 // Each provider only contributes the parts that actually differ between
 // providers: how a webhook is authenticated, how its event/payload shapes map to
@@ -22,15 +23,16 @@ import (
 type Kind string
 
 const (
-	KindForgejo Kind = "forgejo"
-	KindGitea   Kind = "gitea"
-	KindGitLab  Kind = "gitlab"
+	KindForgejo   Kind = "forgejo"
+	KindGitea     Kind = "gitea"
+	KindGitLab    Kind = "gitlab"
+	KindBitbucket Kind = "bitbucket"
 )
 
 // Valid reports whether k is a known provider kind.
 func (k Kind) Valid() bool {
 	switch k {
-	case KindForgejo, KindGitea, KindGitLab:
+	case KindForgejo, KindGitea, KindGitLab, KindBitbucket:
 		return true
 	}
 	return false

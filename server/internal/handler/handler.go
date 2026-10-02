@@ -78,7 +78,7 @@ type Config struct {
 	// the UI can hide every "Create workspace" affordance — see #3433.
 	DisableWorkspaceCreation bool
 	// VCSIntegrationEnabled gates the self-hosted Git provider integration
-	// (Forgejo / Gitea / GitLab) at the deployment level, independent of whether
+	// (Forgejo / Gitea / GitLab / Bitbucket) at the deployment level, independent of whether
 	// MULTICA_VCS_SECRET_KEY is set. It is the product boundary: the feature is
 	// intended for self-hosted Multica only (where Multica and the Git instance
 	// can share a network), and is left off on the managed cloud — connect,
@@ -399,7 +399,7 @@ type Handler struct {
 	// back silently.
 	LLM *llm.Client
 	// VCSSecretBox encrypts/decrypts per-workspace Git provider access tokens and
-	// webhook secrets at rest (Forgejo / Gitea / GitLab). Nil when
+	// webhook secrets at rest (Forgejo / Gitea / GitLab / Bitbucket). Nil when
 	// MULTICA_VCS_SECRET_KEY is unset; connect returns 403 and webhook returns 404
 	// in that case so a misconfigured self-host deployment surfaces a clear
 	// error rather than silently storing plaintext. Wired in

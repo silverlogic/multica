@@ -74,7 +74,7 @@ Returns `{"pull_requests": [...], ...}`. Each element of `pull_requests` exposes
   response; the server folds them into `state` (merged wins, then closed, then
   draft, else open).
 - `merged_at` — non-null once merged; a second confirmation of `state: merged`.
-- `provider` — `github`, `forgejo`, `gitea`, or `gitlab`.
+- `provider` — `github`, `forgejo`, `gitea`, `gitlab`, or `bitbucket`.
 - `mergeable_state` — mirrors GitHub (`clean` / `dirty` surfaced; other values
   round-trip as unknown; retained for compatibility).
 - GitHub API snapshot fields: `snapshot_available`, `mergeable`,
@@ -86,8 +86,8 @@ Returns `{"pull_requests": [...], ...}`. Each element of `pull_requests` exposes
   snapshot feature is disabled, has not fetched yet, or only has an old head.
 - `checks_conclusion` — coarse CI compatibility status: `passed`, `failed`,
   `pending`, or `null`. GitHub derives it from the current API snapshot;
-  Forgejo/Gitea/GitLab derive it from webhook commit statuses. Backed by the
-  provider-appropriate check counts.
+  Forgejo/Gitea/GitLab/Bitbucket derive it from webhook commit statuses.
+  Backed by the provider-appropriate check counts.
 
 So "is it merged?" is `state == "merged"` (or `merged_at != null`); "is it still
 a draft?" is `state == "draft"`; coarse CI status is `checks_conclusion`.

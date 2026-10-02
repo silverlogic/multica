@@ -382,9 +382,10 @@ type LinkIssuePullRequestRequest struct {
 	PullRequestID string `json:"pull_request_id"`
 }
 
-// prURLPattern keeps scheme://host/owner/repo/(pull|pulls|-/merge_requests)/N
-// and drops anything after it (/files, ?query, #fragment).
-var prURLPattern = regexp.MustCompile(`^(https?://[^/?#]+/.+?/(?:pull|pulls|merge_requests)/\d+)(?:[/?#].*)?$`)
+// prURLPattern keeps scheme://host/owner/repo/(pull|pulls|-/merge_requests|
+// pull-requests)/N and drops anything after it (/files, /diff, ?query,
+// #fragment). pull-requests is Bitbucket's form.
+var prURLPattern = regexp.MustCompile(`^(https?://[^/?#]+/.+?/(?:pull|pulls|merge_requests|pull-requests)/\d+)(?:[/?#].*)?$`)
 
 func normalizePullRequestURL(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)

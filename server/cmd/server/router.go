@@ -1294,7 +1294,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	}
 
 	// VCS at-rest encryption: the box encrypts per-workspace access tokens and
-	// webhook secrets for token-based providers (Forgejo / Gitea / GitLab).
+	// webhook secrets for token-based providers (Forgejo / Gitea / GitLab / Bitbucket).
 	// Without it, connect/webhook handlers return 503 (so a misconfigured
 	// self-host never stores plaintext secrets).
 	if vcsKey, err := secretbox.LoadKey("MULTICA_VCS_SECRET_KEY"); err == nil {
@@ -1543,7 +1543,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// browser redirect; the workspace/agent/initiator are recovered from the
 	// sealed state). It exchanges the code, upserts the install, then bounces
 	// the browser back to Settings → Integrations.
-	// VCS webhook for token-based providers (Forgejo / Gitea / GitLab). No Multica
+	// VCS webhook for token-based providers (Forgejo / Gitea / GitLab / Bitbucket). No Multica
 	// auth — authenticated per-connection by the provider's signature scheme;
 	// the connection id in the path selects the workspace, provider, and
 	// decryption secret.
@@ -1727,7 +1727,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// the handler strips the management handle and adds a
 					// can_manage hint so the UI can gate connect/disconnect.
 					r.Get("/github/installations", h.ListGitHubInstallations)
-					// VCS connections (Forgejo / Gitea / GitLab) — member-visible
+					// VCS connections (Forgejo / Gitea / GitLab / Bitbucket) — member-visible
 					// for the same reason as GitHub installations; connect /
 					// disconnect are admin-gated in the group below.
 					r.Get("/vcs/connections", h.ListVCSConnections)

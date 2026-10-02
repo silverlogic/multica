@@ -13,18 +13,18 @@ import (
 )
 
 func TestRegistry(t *testing.T) {
-	for _, k := range []string{"forgejo", "gitea", "gitlab"} {
+	for _, k := range []string{"forgejo", "gitea", "gitlab", "bitbucket"} {
 		if _, ok := For(k); !ok {
 			t.Errorf("registry missing provider %q", k)
 		}
 	}
-	if _, ok := For("bitbucket"); ok {
+	if _, ok := For("svn"); ok {
 		t.Error("unknown provider should not resolve")
 	}
 }
 
 func TestKindValid(t *testing.T) {
-	if !KindForgejo.Valid() || !KindGitea.Valid() || !KindGitLab.Valid() {
+	if !KindForgejo.Valid() || !KindGitea.Valid() || !KindGitLab.Valid() || !KindBitbucket.Valid() {
 		t.Error("known kinds must be valid")
 	}
 	if Kind("svn").Valid() {
