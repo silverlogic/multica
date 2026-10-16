@@ -21,7 +21,7 @@ catalog:
   eslint-plugin-i18next: ^6.1.4
   i18next: ^26.0.8
   jsdom: ^29.0.1
-  katex: ^0.16.45
+  katex: ^0.18.2
   lucide-react: ^1.0.1
   mermaid: ^11.14.0
   postcss: ^8
