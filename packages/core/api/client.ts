@@ -188,6 +188,11 @@ import type {
   ListVCSConnectionsResponse,
   ConnectVCSRequest,
   ConnectVCSResponse,
+  JiraConnection,
+  ListJiraConnectionsResponse,
+  ConnectJiraRequest,
+  ConnectJiraResponse,
+  SyncJiraConnectionResponse,
   ListLarkInstallationsResponse,
   BeginLarkInstallResponse,
   LarkInstallStatusResponse,
@@ -389,6 +394,13 @@ import {
   TelegramInstallationSchema,
   ListTelegramInstallationsResponseSchema,
   RedeemTelegramBindingTokenResponseSchema,
+  JiraConnectionSchema,
+  EMPTY_JIRA_CONNECTION,
+  ListJiraConnectionsResponseSchema,
+  EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE,
+  ConnectJiraResponseSchema,
+  SyncJiraConnectionResponseSchema,
+  EMPTY_SYNC_JIRA_CONNECTION_RESPONSE,
   EMPTY_TELEGRAM_INSTALLATION,
   EMPTY_LIST_TELEGRAM_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE,
@@ -5092,6 +5104,65 @@ export class ApiClient {
       `/api/workspaces/${workspaceId}/vcs/connections/${connectionId}/rotate-webhook`,
       { method: "POST" },
     );
+  }
+
+  // Jira integration
+  async listJiraConnections(workspaceId: string): Promise<ListJiraConnectionsResponse> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/jira/connections`);
+    return parseWithFallback(
+      raw,
+      ListJiraConnectionsResponseSchema,
+      EMPTY_LIST_JIRA_CONNECTIONS_RESPONSE,
+      { endpoint: "GET /api/workspaces/:id/jira/connections" },
+    );
+  }
+
+  async getJiraConnection(workspaceId: string, connectionId: string): Promise<JiraConnection> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspaces/${workspaceId}/jira/connections/${connectionId}`,
+    );
+    return parseWithFallback(raw, JiraConnectionSchema, EMPTY_JIRA_CONNECTION, {
+      endpoint: "GET /api/workspaces/:id/jira/connections/:connectionId",
+    });
+  }
+
+  async connectJira(workspaceId: string, body: ConnectJiraRequest): Promise<ConnectJiraResponse> {
+    const endpoint = "POST /api/workspaces/:id/jira/connections";
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/jira/connections`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const parsed = parseWithFallback<ConnectJiraResponse | null>(
+      raw,
+      ConnectJiraResponseSchema,
+      null,
+      { endpoint },
+    );
+    if (parsed === null) throw new Error(`Malformed response from ${endpoint}`);
+    return parsed;
+  }
+
+  /** Pull-based sync: import/refresh issues matching the connection's JQL. */
+  async syncJiraConnection(
+    workspaceId: string,
+    connectionId: string,
+  ): Promise<SyncJiraConnectionResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspaces/${workspaceId}/jira/connections/${connectionId}/sync`,
+      { method: "POST" },
+    );
+    return parseWithFallback(
+      raw,
+      SyncJiraConnectionResponseSchema,
+      EMPTY_SYNC_JIRA_CONNECTION_RESPONSE,
+      { endpoint: "POST /api/workspaces/:id/jira/connections/:connectionId/sync" },
+    );
+  }
+
+  async deleteJiraConnection(workspaceId: string, connectionId: string): Promise<void> {
+    await this.fetch(`/api/workspaces/${workspaceId}/jira/connections/${connectionId}`, {
+      method: "DELETE",
+    });
   }
 
   // Lark integration

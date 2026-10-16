@@ -19,6 +19,7 @@ import {
   Server,
   Settings,
   SlidersHorizontal,
+  SquareKanban,
   Tags,
   User,
   Users,
@@ -49,6 +50,7 @@ import { WorkspaceTab } from "./workspace-tab";
 import { MembersTab } from "./members-tab";
 import { CodeTab } from "./code-tab";
 import { ChannelsTab } from "./channels-tab";
+import { JiraTab } from "./jira-tab";
 import { ConnectedAppsTab, useComposioAvailable } from "./connected-apps-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { LabelsTab } from "./labels-tab";
@@ -254,6 +256,9 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
               MessagesSquare,
               <ChannelsTab />,
             ),
+            entry("jira", t(($) => $.page.tabs.jira), SquareKanban, <JiraTab />, {
+              adminOnly: true,
+            }),
             entry("mcp", t(($) => $.page.tabs.mcp), Server, <McpTab />, {
               adminOnly: true,
             }),

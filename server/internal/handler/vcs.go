@@ -39,7 +39,8 @@ type VCSConnectionResponse struct {
 
 // VCSConnectResponse embeds the stored connection plus the one-time plaintext
 // webhook secret the user must paste into the provider (the HMAC secret for
-// Forgejo/Gitea, the X-Gitlab-Token value for GitLab). Not retrievable after.
+// Forgejo/Gitea/Bitbucket, the X-Gitlab-Token value for GitLab). Not
+// retrievable after.
 type VCSConnectResponse struct {
 	VCSConnectionResponse
 	WebhookSecret string `json:"webhook_secret"`
@@ -151,6 +152,9 @@ type connectVCSRequest struct {
 	Provider    string `json:"provider"`
 	InstanceURL string `json:"instance_url"`
 	AccessToken string `json:"access_token"`
+	// AccountEmail is the Atlassian account a Bitbucket API token belongs to
+	// (basic auth needs both). Ignored by the other providers.
+	AccountEmail string `json:"account_email"`
 }
 
 // ConnectVCS (POST /workspaces/{id}/vcs/connections) validates the supplied
@@ -184,6 +188,19 @@ func (h *Handler) ConnectVCS(w http.ResponseWriter, r *http.Request) {
 	}
 	instanceURL := vcs.NormalizeInstanceURL(req.InstanceURL)
 	token := strings.TrimSpace(req.AccessToken)
+	if provider.Kind() == vcs.KindBitbucket {
+		// Bitbucket Cloud has one site, so the URL is implied; the stored
+		// credential is "email:token" (see vcs.BitbucketCredential).
+		if instanceURL == "" {
+			instanceURL = vcs.BitbucketCloudURL
+		}
+		email := strings.TrimSpace(req.AccountEmail)
+		if email == "" || token == "" {
+			writeError(w, http.StatusBadRequest, "account_email and access_token are required for Bitbucket")
+			return
+		}
+		token = vcs.BitbucketCredential(email, token)
+	}
 	if instanceURL == "" || token == "" {
 		writeError(w, http.StatusBadRequest, "instance_url and access_token are required")
 		return

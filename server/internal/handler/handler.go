@@ -29,6 +29,7 @@ import (
 	composio "github.com/multica-ai/multica/server/internal/integrations/composio"
 	"github.com/multica-ai/multica/server/internal/integrations/dingtalk"
 	"github.com/multica-ai/multica/server/internal/integrations/ghsnapshot"
+	"github.com/multica-ai/multica/server/internal/integrations/jira"
 	"github.com/multica-ai/multica/server/internal/integrations/lark"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
@@ -84,7 +85,7 @@ type Config struct {
 	// visibility or admin rights (#9400).
 	WorkspaceCreationAllowedEmails []string
 	// VCSIntegrationEnabled gates the self-hosted Git provider integration
-	// (Forgejo / Gitea / GitLab) at the deployment level, independent of whether
+	// (Forgejo / Gitea / GitLab / Bitbucket) at the deployment level, independent of whether
 	// MULTICA_VCS_SECRET_KEY is set. It is the product boundary: the feature is
 	// intended for self-hosted Multica only (where Multica and the Git instance
 	// can share a network), and is left off on the managed cloud — connect,
@@ -413,7 +414,7 @@ type Handler struct {
 	// back silently.
 	LLM *llm.Client
 	// VCSSecretBox encrypts/decrypts per-workspace Git provider access tokens and
-	// webhook secrets at rest (Forgejo / Gitea / GitLab). Nil when
+	// webhook secrets at rest (Forgejo / Gitea / GitLab / Bitbucket). Nil when
 	// MULTICA_VCS_SECRET_KEY is unset; connect returns 403 and webhook returns 404
 	// in that case so a misconfigured self-host deployment surfaces a clear
 	// error rather than silently storing plaintext. Wired in
@@ -422,6 +423,17 @@ type Handler struct {
 	// PluginSurfaceTokens seal short-lived launch claims. Nil disables surface
 	// launches; wired from a domain-separated MULTICA_PLUGIN_SECRET_KEY at boot.
 	PluginSurfaceTokens *secretbox.Box
+	// JiraSecretBox encrypts/decrypts per-workspace Jira API tokens and
+	// webhook secrets at rest. Nil when MULTICA_JIRA_SECRET_KEY is unset; the
+	// connect/webhook handlers return 503 in that case so a misconfigured
+	// deployment surfaces a clear error rather than silently storing
+	// plaintext. Wired in cmd/server/router.go after New.
+	JiraSecretBox *secretbox.Box
+	// JiraClient is the Jira REST seam used by connect-time credential
+	// validation and webhook-time issue enrichment. Always non-nil (New wires
+	// the production HTTP client); tests substitute a mock so the suite never
+	// contacts a real Jira site.
+	JiraClient jira.Client
 	// PRRefresh drives the GitHub API snapshot pipeline for PR cards (MUL-5265):
 	// webhook / page-visit / TTL triggers → authenticated GraphQL fetch →
 	// head-SHA-guarded atomic snapshot write. Always non-nil, but inert (every
@@ -539,6 +551,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	if passthrough, ok := h.HeartbeatScheduler.(*PassthroughHeartbeatScheduler); ok {
 		passthrough.RecoveryNotifier = h
 	}
+	h.JiraClient = jira.NewHTTPClient(nil)
 
 	// GitHub API snapshot pipeline for PR cards (MUL-5265). Built
 	// unconditionally but inert (every trigger no-ops) when the App private key
