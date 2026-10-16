@@ -1,5 +1,5 @@
 -- =====================
--- VCS Connection (Forgejo / Gitea / GitLab)
+-- VCS Connection (Forgejo / Gitea / GitLab / Bitbucket)
 -- =====================
 
 -- name: ListVCSConnectionsByWorkspace :many

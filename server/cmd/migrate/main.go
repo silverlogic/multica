@@ -357,6 +357,9 @@ var concurrentIndexCleanups = map[string]string{
 	"482_agent_task_queue_telemetry_started_index":              "idx_agent_task_queue_telemetry_started",
 	"484_issue_triage_state_index":                              "idx_issue_triage_state",
 	"537_issue_duplicate_of_index":                              "idx_issue_duplicate_of",
+	"584_jira_connection_workspace_index":                       "idx_jira_connection_workspace",
+	"585_jira_issue_link_workspace_index":                       "idx_jira_issue_link_workspace",
+	"586_jira_issue_link_multica_issue_index":                   "idx_jira_issue_link_multica_issue",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

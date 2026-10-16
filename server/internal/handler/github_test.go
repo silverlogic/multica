@@ -1629,6 +1629,7 @@ func TestNormalizePullRequestURL(t *testing.T) {
 		{"github.com/acme/widget/pull/12/files?diff=split#r1", "https://github.com/acme/widget/pull/12", true},
 		{"https://gitlab.example.com/group/sub/repo/-/merge_requests/7/diffs", "https://gitlab.example.com/group/sub/repo/-/merge_requests/7", true},
 		{"https://git.example.com/acme/widget/pulls/3", "https://git.example.com/acme/widget/pulls/3", true},
+		{"https://bitbucket.org/Acme/Web/pull-requests/42/diff#chg-file", "https://bitbucket.org/acme/web/pull-requests/42", true},
 		{"https://github.com/acme/widget/issues/12", "", false},
 		{"not a url", "", false},
 		{"", "", false},

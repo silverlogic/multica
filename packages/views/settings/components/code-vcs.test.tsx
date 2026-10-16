@@ -10,7 +10,7 @@ const listing = vi.hoisted(() => ({
   current: {
     connections: [] as {
       id: string;
-      provider: "forgejo" | "gitea" | "gitlab";
+      provider: "forgejo" | "gitea" | "gitlab" | "bitbucket";
       instance_url: string;
       account_login: string;
     }[],
@@ -76,6 +76,43 @@ describe("VCSConnectionRows", () => {
     expect(within(webhook).getByDisplayValue("s3cret")).toBeInTheDocument();
     await user.click(within(webhook).getByRole("button", { name: "I've saved it" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("connects Bitbucket Cloud with an account email instead of an instance URL", async () => {
+    mockConnect.mockResolvedValue({
+      ...CONNECTION,
+      provider: "bitbucket",
+      instance_url: "https://bitbucket.org",
+      webhook_url: "https://api.example/webhooks/vcs/vcs-1",
+      webhook_path: "/webhooks/vcs/vcs-1",
+      webhook_secret: "s3cret",
+    });
+    const user = userEvent.setup();
+    renderWithI18n(<VCSConnectionRows />);
+
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    const form = await screen.findByRole("dialog");
+    await user.click(within(form).getByLabelText("Provider"));
+    await user.click(await screen.findByRole("option", { name: "Bitbucket Cloud" }));
+
+    expect(within(form).queryByLabelText("Instance URL")).toBeNull();
+    expect(within(form).getByText(/read:user:bitbucket/)).toBeInTheDocument();
+    await user.type(within(form).getByLabelText("Access token"), "api-token");
+    // The token alone is not enough: Bitbucket basic auth needs the email.
+    expect(within(form).getByRole("button", { name: "Connect" })).toBeDisabled();
+    await user.type(within(form).getByLabelText("Atlassian account email"), "dev@acme.dev");
+    await user.click(within(form).getByRole("button", { name: "Connect" }));
+
+    await waitFor(() =>
+      expect(mockConnect).toHaveBeenCalledWith("ws-1", {
+        provider: "bitbucket",
+        instance_url: "",
+        access_token: "api-token",
+        account_email: "dev@acme.dev",
+      }),
+    );
+    const webhook = await screen.findByRole("dialog", { name: /Finish setup/ });
+    expect(within(webhook).getByText(/Repository settings, Webhooks/)).toBeInTheDocument();
   });
 
   it("lists connected instances with their actions", async () => {

@@ -616,6 +616,14 @@ DELETE FROM vcs_pull_request WHERE vcs_pull_request.workspace_id = $1;
 WITH deleted_github_installations AS (
     DELETE FROM github_installation
     WHERE github_installation.workspace_id = $1
+),
+deleted_jira_issue_links AS (
+    DELETE FROM jira_issue_link
+    WHERE jira_issue_link.workspace_id = $1
+),
+deleted_jira_connections AS (
+    DELETE FROM jira_connection
+    WHERE jira_connection.workspace_id = $1
 )
 DELETE FROM vcs_connection WHERE vcs_connection.workspace_id = $1;
 

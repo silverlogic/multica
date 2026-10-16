@@ -304,7 +304,24 @@ INSERT INTO issue_source_context_object_intent (
 VALUES ($1, $2, gen_random_uuid(), gen_random_uuid(), 's3://workspace-delete/source-context-object')
 `, sourceContextObjectKey, wsID)
 
+	jiraConnID := dbfx.Insert(t, "jira_connection", testutil.Cols{
+		"workspace_id":             wsID,
+		"base_url":                 "https://workspace-delete.atlassian.net",
+		"account_email":            "delete@example.com",
+		"api_token_encrypted":      "sealed-token",
+		"webhook_secret_encrypted": "sealed-secret",
+	})
+	dbfx.Insert(t, "jira_issue_link", testutil.Cols{
+		"workspace_id":     wsID,
+		"connection_id":    jiraConnID,
+		"jira_issue_key":   "DEL-1",
+		"jira_issue_id":    "10001",
+		"multica_issue_id": issueID,
+	})
+
 	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM jira_issue_link WHERE workspace_id = $1`, wsID)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM jira_connection WHERE workspace_id = $1`, wsID)
 		_, _ = testPool.Exec(context.Background(), `DELETE FROM task_usage_hourly_dirty WHERE workspace_id = $1`, wsID)
 		_, _ = testPool.Exec(context.Background(), `DELETE FROM task_usage_hourly WHERE workspace_id = $1`, wsID)
 		_, _ = testPool.Exec(context.Background(), `DELETE FROM runtime_profile WHERE id = $1`, runtimeProfileID)
@@ -352,6 +369,8 @@ VALUES ($1, $2, gen_random_uuid(), gen_random_uuid(), 's3://workspace-delete/sou
 		"task_usage_hourly",
 		"runtime_profile",
 		"autopilot_rule_version",
+		"jira_connection",
+		"jira_issue_link",
 	} {
 		var count int
 		dbfx.QueryRow(t, `SELECT COUNT(*) FROM `+table+` WHERE workspace_id = $1`, wsID).Scan(&count)

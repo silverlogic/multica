@@ -202,6 +202,37 @@ func (q *Queries) GetIssueProperty(ctx context.Context, arg GetIssuePropertyPara
 	return i, err
 }
 
+const getIssuePropertyByName = `-- name: GetIssuePropertyByName :one
+SELECT id, workspace_id, name, type, description, config, position, archived_at, created_at, updated_at, icon FROM issue_property
+WHERE workspace_id = $1 AND LOWER(name) = LOWER($2::text)
+`
+
+type GetIssuePropertyByNameParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
+}
+
+// Case-insensitive, archived definitions included — the same scope as the
+// idx_issue_property_ws_name uniqueness the lookup mirrors.
+func (q *Queries) GetIssuePropertyByName(ctx context.Context, arg GetIssuePropertyByNameParams) (IssueProperty, error) {
+	row := q.db.QueryRow(ctx, getIssuePropertyByName, arg.WorkspaceID, arg.Name)
+	var i IssueProperty
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Type,
+		&i.Description,
+		&i.Config,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Icon,
+	)
+	return i, err
+}
+
 const listIssueProperties = `-- name: ListIssueProperties :many
 SELECT p.id, p.workspace_id, p.name, p.type, p.description, p.config, p.position, p.archived_at, p.created_at, p.updated_at, p.icon,
     (

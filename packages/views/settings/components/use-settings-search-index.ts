@@ -203,6 +203,11 @@ export function useSettingsSearchIndex(
         description: t(($) => $[channel].page_description),
       })),
       {
+        tab: "jira",
+        title: t(($) => $.page.tabs.jira),
+        description: t(($) => $.jira.page_description),
+      },
+      {
         tab: "mcp",
         title: t(($) => $.page.tabs.mcp),
         description: t(($) => $.mcp.description),

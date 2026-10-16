@@ -1,6 +1,6 @@
 ---
-title: Self-hosted Git providers
-description: Connect a self-hosted Forgejo, Gitea, or GitLab instance per workspace so pull/merge requests that carry an issue identifier in their branch name or title, or after a closing keyword in the body, auto-attach to that issue, move it to the workspace's chosen status when they merge, and show CI status.
+title: Git providers
+description: Connect a self-hosted Forgejo, Gitea, or GitLab instance, or Bitbucket Cloud, per workspace so pull/merge requests that carry an issue identifier in their branch name or title, or after a closing keyword in the body, auto-attach to that issue, move it to the workspace's chosen status when they merge, and show CI status.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -9,17 +9,18 @@ import { Callout } from "fumadocs-ui/components/callout";
 **Self-hosted Multica only.** This integration is available only when you run
 Multica yourself; it is not offered on Multica Cloud. "Self-hosted" here means
 **Multica** is self-hosted — typically so it can reach a Git instance on your own
-network. A server operator must enable it (`MULTICA_VCS_INTEGRATION_ENABLED=true`)
+network. Bitbucket Cloud works too, as long as it can reach your Multica's public
+webhook URL. A server operator must enable it (`MULTICA_VCS_INTEGRATION_ENABLED=true`)
 and set `MULTICA_VCS_SECRET_KEY`; until then the section does not appear in
 Settings → Code.
 </Callout>
 
-Multica connects to a self-hosted Git provider per workspace: **Forgejo**, **Gitea**, or **GitLab**. Once connected, any pull request (GitLab: merge request) whose branch name or title contains an issue identifier (for example `MUL-123`), or whose body names one after a closing keyword (`Closes MUL-123`), is **auto-linked** to that [issue](/issues) and appears under **Pull requests** in the issue sidebar. When every PR linked to the issue is merged, the issue moves to the status the workspace chose (**Done** by default). CI for the head commit shows as a checks bar on the card.
+Multica connects to a Git provider per workspace: self-hosted **Forgejo**, **Gitea**, or **GitLab**, or **Bitbucket Cloud**. Once connected, any pull request (GitLab: merge request) whose branch name or title contains an issue identifier (for example `MUL-123`) or the Jira key of an issue mirrored from [Jira](#jira-keys) (for example `BA-1688`), or whose body names one after a closing keyword (`Closes MUL-123`), is **auto-linked** to that [issue](/issues) and appears under **Pull requests** in the issue sidebar. When every PR linked to the issue is merged, the issue moves to the status the workspace chose (**Done** by default). CI for the head commit shows as a checks bar on the card.
 
 These providers run alongside GitHub: a workspace can use any combination.
 
 <Callout type="info">
-Unlike GitHub, these providers have no "App" model. Each workspace stores its own instance URL plus an access token, and registers a webhook on its repository or organisation. The token and webhook secret are encrypted at rest.
+Unlike GitHub, these providers have no "App" model. Each workspace stores its own instance URL plus an access token (for Bitbucket Cloud, an Atlassian account email plus an API token), and registers a webhook on its repository or organisation. The token and webhook secret are encrypted at rest.
 </Callout>
 
 ## Prerequisites (server)
@@ -51,8 +52,9 @@ Set `MULTICA_PUBLIC_URL` to the server's public base URL so Multica can show a r
 1. Create an access token in your provider with read access to the repositories you want mirrored:
    - **Forgejo / Gitea**: Settings → Applications.
    - **GitLab**: a personal (or group/project) access token with the `read_api` scope.
-2. In Multica, open **Settings → Code**, then click **Connect** in the **Self-hosted Git** row.
-3. Choose the **provider**, enter the instance URL (for example `https://forgejo.example.com`) and the access token, then **Connect**. Multica validates the token against the instance before saving.
+   - **Bitbucket Cloud**: an Atlassian API token (id.atlassian.com → Security → API tokens) with the `read:user:bitbucket` scope. Bitbucket no longer accepts app passwords.
+2. In Multica, open **Settings → Code**, then click **Connect** in the **Git providers** row.
+3. Choose the **provider**, enter the instance URL (for example `https://forgejo.example.com`) and the access token, then **Connect**. For **Bitbucket Cloud**, enter the Atlassian account email instead of an instance URL; one connection covers every repository its webhook is added to. Multica validates the token against the instance before saving.
 4. Copy the **webhook URL** and **webhook secret** shown after connecting.
 
 <Callout type="warn">
@@ -82,13 +84,24 @@ On the repository (or organisation/group, to cover every repo):
 - **Secret token**: the webhook secret (sent as `X-Gitlab-Token` and compared verbatim).
 - **Triggers**: enable **Merge request events**, and **Pipeline events** to mirror CI.
 
+**Bitbucket Cloud** — Repository settings → Webhooks → Add webhook (needs repository admin rights), on each repository:
+
+- **URL**: the webhook URL.
+- **Secret**: the webhook secret (used to verify the `X-Hub-Signature` HMAC).
+- **Triggers**: under **Pull request**, select **Created**, **Updated**, **Merged**, and **Declined**; under **Repository**, select **Build status created** and **Build status updated** to mirror CI.
+
 Multica authenticates every delivery against the stored secret, so a webhook without the matching secret is rejected.
 
 ## What gets mirrored
 
-- **Pull / merge requests** — open, closed, merged, and draft state, author, branch, and (where the provider supplies them) diff stats.
+- **Pull / merge requests** — open, closed, merged, and draft state, author, branch, and (where the provider supplies them) diff stats. A declined or superseded Bitbucket pull request counts as closed; Bitbucket sends no diff stats.
 - **Issue links** — an identifier in the title or branch links the PR to the issue, as does an identifier after a closing keyword in the body; a bare mention in the body links nothing. Once every PR linked to the issue is merged — across GitHub and self-hosted providers — the issue moves to the status the workspace chose, under the same setting and rules as [GitHub](/github-integration#when-merged-prs-move-an-issue). This page shows the same **After PRs merge, move the issue to** setting once a provider is connected.
-- **CI** — Forgejo/Gitea commit statuses and GitLab pipelines aggregate into a passed/failed/pending checks bar for the head commit.
+- **CI** — Forgejo/Gitea commit statuses, GitLab pipelines, and Bitbucket build statuses (Bitbucket Pipelines or any tool that reports a build status) aggregate into a passed/failed/pending checks bar for the head commit.
+- **Pull request URLs** — pasting a PR URL in **Link pull request** on an issue links that PR by hand, including Bitbucket `https://bitbucket.org/<workspace>/<repo>/pull-requests/<n>` URLs.
+
+### Jira keys
+
+When a workspace mirrors issues from Jira, a pull request also links an issue by its Jira key, under the same rules as an issue identifier: a branch named `feature/BA-1688-footer`, a title starting with `BA-1688`, or `Closes BA-1688` in the body links the issue mirrored from `BA-1688`. This works for GitHub pull requests too. A key that matches an issue identifier in the workspace links that issue, and a key mirrored to two issues (two connected Jira sites sharing it) links neither.
 
 ## Agents opening pull requests
 

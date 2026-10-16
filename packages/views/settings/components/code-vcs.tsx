@@ -47,11 +47,12 @@ import { useT } from "../../i18n";
 import { SettingsRow } from "./settings-layout";
 import { HostMark, HostStatus } from "./code-host";
 
-const PROVIDERS: VCSProvider[] = ["forgejo", "gitea", "gitlab"];
+const PROVIDERS: VCSProvider[] = ["forgejo", "gitea", "gitlab", "bitbucket"];
 const PROVIDER_LABELS: Record<VCSProvider, string> = {
   forgejo: "Forgejo",
   gitea: "Gitea",
   gitlab: "GitLab",
+  bitbucket: "Bitbucket Cloud",
 };
 const PROVIDER_OPTIONS = PROVIDERS.map((p) => ({
   value: p,
@@ -59,7 +60,7 @@ const PROVIDER_OPTIONS = PROVIDERS.map((p) => ({
 }));
 
 /**
- * Self-hosted Forgejo / Gitea / GitLab connections, rendered as rows of the
+ * Forgejo / Gitea / GitLab / Bitbucket Cloud connections, rendered as rows of the
  * Code page's "Code hosting" card: one row per connected instance, then a row
  * to connect another. Connecting and rotating both end on the one-time webhook
  * secret, shown in a dialog the user has to dismiss.
@@ -77,6 +78,7 @@ export function VCSConnectionRows() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [provider, setProvider] = useState<VCSProvider>("forgejo");
   const [instanceUrl, setInstanceUrl] = useState("");
+  const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [webhook, setWebhook] = useState<ConnectVCSResponse | null>(null);
@@ -85,17 +87,26 @@ export function VCSConnectionRows() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Bitbucket Cloud has one fixed site; its API token needs the account email.
+  const isBitbucket = provider === "bitbucket";
+  const canSubmit =
+    !connecting &&
+    token.trim() !== "" &&
+    (isBitbucket ? email.trim() !== "" : instanceUrl.trim() !== "");
+
   async function handleConnect() {
-    if (connecting || !instanceUrl.trim() || !token.trim()) return;
+    if (!canSubmit) return;
     setConnecting(true);
     try {
       const resp = await api.connectVCS(wsId, {
         provider,
-        instance_url: instanceUrl.trim(),
+        instance_url: isBitbucket ? "" : instanceUrl.trim(),
         access_token: token.trim(),
+        ...(isBitbucket ? { account_email: email.trim() } : {}),
       });
       await qc.invalidateQueries({ queryKey: ["vcs", wsId] });
       setInstanceUrl("");
+      setEmail("");
       setToken("");
       setConnectOpen(false);
       setWebhook(resp);
@@ -288,16 +299,30 @@ export function VCSConnectionRows() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="vcs-url">{t(($) => $.vcs.form_instance_url_label)}</Label>
-              <Input
-                id="vcs-url"
-                placeholder="https://forgejo.example.com"
-                value={instanceUrl}
-                onChange={(e) => setInstanceUrl(e.target.value)}
-                disabled={connecting}
-              />
-            </div>
+            {isBitbucket ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="vcs-email">{t(($) => $.vcs.form_email_label)}</Label>
+                <Input
+                  id="vcs-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={connecting}
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="vcs-url">{t(($) => $.vcs.form_instance_url_label)}</Label>
+                <Input
+                  id="vcs-url"
+                  placeholder="https://forgejo.example.com"
+                  value={instanceUrl}
+                  onChange={(e) => setInstanceUrl(e.target.value)}
+                  disabled={connecting}
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="vcs-token">{t(($) => $.vcs.form_token_label)}</Label>
               <Input
@@ -309,7 +334,11 @@ export function VCSConnectionRows() {
                 onChange={(e) => setToken(e.target.value)}
                 disabled={connecting}
               />
-              <p className="text-caption text-muted-foreground">{t(($) => $.vcs.form_token_hint)}</p>
+              <p className="text-caption text-muted-foreground">
+                {isBitbucket
+                  ? t(($) => $.vcs.form_token_hint_bitbucket)
+                  : t(($) => $.vcs.form_token_hint)}
+              </p>
             </div>
             <DialogFooter>
               <Button
@@ -322,7 +351,7 @@ export function VCSConnectionRows() {
               </Button>
               <Button
                 type="submit"
-                disabled={connecting || !instanceUrl.trim() || !token.trim()}
+                disabled={!canSubmit}
                 aria-busy={connecting || undefined}
               >
                 {connecting ? t(($) => $.vcs.connecting) : t(($) => $.vcs.connect)}
@@ -341,7 +370,11 @@ export function VCSConnectionRows() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t(($) => $.vcs.webhook_setup_title)}</DialogTitle>
-            <DialogDescription>{t(($) => $.vcs.webhook_setup_description)}</DialogDescription>
+            <DialogDescription>
+              {webhook?.provider === "bitbucket"
+                ? t(($) => $.vcs.webhook_setup_bitbucket)
+                : t(($) => $.vcs.webhook_setup_description)}
+            </DialogDescription>
           </DialogHeader>
           {webhook ? (
             <div className="space-y-3">
