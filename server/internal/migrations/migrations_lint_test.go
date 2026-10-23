@@ -2,7 +2,9 @@ package migrations
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -62,6 +64,109 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 			t.Errorf("allowlisted fork migration %s has no .up.sql file", stem)
 		}
 	}
+}
+
+// A value the fork adds to an upstream CHECK constraint, and the fork migration
+// that adds it. Production holds rows using the value, so a later migration that
+// re-creates the constraint without it fails to validate there.
+type forkConstraintValue struct {
+	constraint string
+	value      string
+	since      string
+}
+
+var forkConstraintValues = []forkConstraintValue{
+	{constraint: "issue_origin_type_check", value: "'jira'", since: "587_issue_origin_jira"},
+	{constraint: "vcs_connection_provider_check", value: "'bitbucket'", since: "592_vcs_bitbucket_provider"},
+	{constraint: "vcs_pull_request_provider_check", value: "'bitbucket'", since: "592_vcs_bitbucket_provider"},
+}
+
+type migrationFile struct {
+	name string
+	sql  string
+}
+
+func TestLaterMigrationsKeepForkConstraintValues(t *testing.T) {
+	var files []migrationFile
+	for _, path := range migrationFilesForLint(t, "*.up.sql") {
+		sql, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, migrationFile{name: filepath.Base(path), sql: string(sql)})
+	}
+	for _, problem := range missingForkConstraintValues(files, forkConstraintValues) {
+		t.Error(problem)
+	}
+}
+
+func TestMissingForkConstraintValues(t *testing.T) {
+	rules := []forkConstraintValue{
+		{constraint: "issue_origin_type_check", value: "'jira'", since: "587_issue_origin_jira"},
+	}
+	const withoutJira = "ALTER TABLE issue DROP CONSTRAINT IF EXISTS issue_origin_type_check;\n" +
+		"ALTER TABLE issue ADD CONSTRAINT issue_origin_type_check\n" +
+		"    CHECK (origin_type IN ('autopilot', 'slack_chat')) NOT VALID;\n"
+	const withJira = "ALTER TABLE issue ADD CONSTRAINT issue_origin_type_check\n" +
+		"    CHECK (origin_type IN ('autopilot', 'slack_chat', 'jira')) NOT VALID;\n"
+
+	for _, tc := range []struct {
+		name  string
+		files []migrationFile
+		want  []string
+	}{
+		{
+			name:  "later migration without the value",
+			files: []migrationFile{{name: "593_issue_origin_foo.up.sql", sql: withoutJira}},
+			want: []string{
+				"593_issue_origin_foo.up.sql re-creates issue_origin_type_check without 'jira'; add 'jira' to the list in that migration",
+			},
+		},
+		{
+			name:  "later migration with the value",
+			files: []migrationFile{{name: "593_issue_origin_foo.up.sql", sql: withJira}},
+		},
+		{
+			name:  "migration sorted before the fork migration",
+			files: []migrationFile{{name: "366_issue_origin_telegram_chat.up.sql", sql: withoutJira}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := missingForkConstraintValues(tc.files, rules)
+			if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
+				t.Fatalf("problems = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+var sqlLineComment = regexp.MustCompile(`--[^\n]*`)
+
+// missingForkConstraintValues reports each migration sorted after a rule's fork
+// migration whose ADD CONSTRAINT statement for that constraint lacks the value.
+func missingForkConstraintValues(files []migrationFile, rules []forkConstraintValue) []string {
+	sorted := append([]migrationFile(nil), files...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].name < sorted[j].name })
+
+	var problems []string
+	for _, rule := range rules {
+		since := rule.since + ".up.sql"
+		addConstraint := regexp.MustCompile(`(?is)\badd\s+constraint\s+"?` + regexp.QuoteMeta(rule.constraint) + `"?(\s[^;]*)?(;|$)`)
+		for _, file := range sorted {
+			if file.name <= since {
+				continue
+			}
+			sql := sqlLineComment.ReplaceAllString(file.sql, "")
+			for _, statement := range addConstraint.FindAllString(sql, -1) {
+				if !strings.Contains(statement, rule.value) {
+					problems = append(problems, fmt.Sprintf(
+						"%s re-creates %s without %s; add %s to the list in that migration",
+						file.name, rule.constraint, rule.value, rule.value))
+				}
+			}
+		}
+	}
+	return problems
 }
 
 func TestMigrationFilesHaveMatchingDirections(t *testing.T) {
