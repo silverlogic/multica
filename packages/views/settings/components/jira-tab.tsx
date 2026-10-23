@@ -228,7 +228,7 @@ export function JiraTab() {
             {!configured ? (
               <p className="text-caption text-muted-foreground">
                 {t(($) => $.jira.not_configured)}{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-micro">
+                <code className="rounded-xs bg-muted px-1 py-0.5 text-micro">
                   MULTICA_JIRA_SECRET_KEY
                 </code>
                 .
