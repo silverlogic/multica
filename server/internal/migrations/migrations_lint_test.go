@@ -10,6 +10,21 @@ import (
 	"testing"
 )
 
+// Fork migrations that share their numbers with upstream ones. Databases record
+// them by full name, so renaming them would make those databases apply them again.
+var forkMigrationsSharingUpstreamNumbers = map[string]bool{
+	"583_jira_integration":                    true,
+	"584_jira_connection_workspace_index":     true,
+	"585_jira_issue_link_workspace_index":     true,
+	"586_jira_issue_link_multica_issue_index": true,
+	"587_issue_origin_jira":                   true,
+	"588_issue_origin_jira_validate":          true,
+	"589_jira_connection_jql":                 true,
+	"590_jira_connection_property_ids":        true,
+	"591_jira_issue_link_seen_status":         true,
+	"592_vcs_bitbucket_provider":              true,
+}
+
 func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 	files := migrationFilesForLint(t, "*.up.sql")
 
@@ -18,9 +33,14 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 	// operators can identify one schema change unambiguously by its number.
 	const firstUniqueMigrationNumber = 129
 	stemByNumber := make(map[int]string)
+	forkStemsSeen := make(map[string]bool)
 	for _, file := range files {
 		stem, _, ok := splitMigrationFilename(filepath.Base(file))
 		if !ok {
+			continue
+		}
+		if forkMigrationsSharingUpstreamNumbers[stem] {
+			forkStemsSeen[stem] = true
 			continue
 		}
 		prefix, _, ok := strings.Cut(stem, "_")
@@ -36,6 +56,11 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 			continue
 		}
 		stemByNumber[number] = stem
+	}
+	for stem := range forkMigrationsSharingUpstreamNumbers {
+		if !forkStemsSeen[stem] {
+			t.Errorf("allowlisted fork migration %s has no .up.sql file", stem)
+		}
 	}
 }
 
