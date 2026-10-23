@@ -66,19 +66,20 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 	}
 }
 
-// A value the fork adds to an upstream CHECK constraint, and the fork migration
-// that adds it. Production holds rows using the value, so a later migration that
-// re-creates the constraint without it fails to validate there.
-type forkConstraintValue struct {
-	constraint string
-	value      string
-	since      string
+// A value the fork adds to the allowed list of an upstream column, and the fork
+// migration that adds it. Production holds rows using the value, so a later CHECK
+// that lists the column's values without it fails to validate there.
+type forkColumnValue struct {
+	table  string
+	column string
+	value  string
+	since  string
 }
 
-var forkConstraintValues = []forkConstraintValue{
-	{constraint: "issue_origin_type_check", value: "'jira'", since: "587_issue_origin_jira"},
-	{constraint: "vcs_connection_provider_check", value: "'bitbucket'", since: "592_vcs_bitbucket_provider"},
-	{constraint: "vcs_pull_request_provider_check", value: "'bitbucket'", since: "592_vcs_bitbucket_provider"},
+var forkColumnValues = []forkColumnValue{
+	{table: "issue", column: "origin_type", value: "'jira'", since: "587_issue_origin_jira"},
+	{table: "vcs_connection", column: "provider", value: "'bitbucket'", since: "592_vcs_bitbucket_provider"},
+	{table: "vcs_pull_request", column: "provider", value: "'bitbucket'", since: "592_vcs_bitbucket_provider"},
 }
 
 type migrationFile struct {
@@ -95,20 +96,25 @@ func TestLaterMigrationsKeepForkConstraintValues(t *testing.T) {
 		}
 		files = append(files, migrationFile{name: filepath.Base(path), sql: string(sql)})
 	}
-	for _, problem := range missingForkConstraintValues(files, forkConstraintValues) {
+	for _, problem := range missingForkColumnValues(files, forkColumnValues) {
 		t.Error(problem)
 	}
 }
 
-func TestMissingForkConstraintValues(t *testing.T) {
-	rules := []forkConstraintValue{
-		{constraint: "issue_origin_type_check", value: "'jira'", since: "587_issue_origin_jira"},
+func TestMissingForkColumnValues(t *testing.T) {
+	rules := []forkColumnValue{
+		{table: "issue", column: "origin_type", value: "'jira'", since: "587_issue_origin_jira"},
 	}
 	const withoutJira = "ALTER TABLE issue DROP CONSTRAINT IF EXISTS issue_origin_type_check;\n" +
 		"ALTER TABLE issue ADD CONSTRAINT issue_origin_type_check\n" +
 		"    CHECK (origin_type IN ('autopilot', 'slack_chat')) NOT VALID;\n"
 	const withJira = "ALTER TABLE issue ADD CONSTRAINT issue_origin_type_check\n" +
 		"    CHECK (origin_type IN ('autopilot', 'slack_chat', 'jira')) NOT VALID;\n"
+	const renamedWithoutJira = "ALTER TABLE issue ADD CONSTRAINT issue_origin_type_check_v2\n" +
+		"    CHECK (origin_type IN ('autopilot', 'slack_chat')) NOT VALID;\n"
+	const otherCheck = "ALTER TABLE issue ADD CONSTRAINT issue_origin_pair_check\n" +
+		"    CHECK ((origin_type IS NULL) = (origin_id IS NULL)) NOT VALID;\n"
+	const reported = "593_issue_origin_foo.up.sql lists issue.origin_type values without 'jira'; add 'jira' to the list in that migration"
 
 	for _, tc := range []struct {
 		name  string
@@ -118,13 +124,20 @@ func TestMissingForkConstraintValues(t *testing.T) {
 		{
 			name:  "later migration without the value",
 			files: []migrationFile{{name: "593_issue_origin_foo.up.sql", sql: withoutJira}},
-			want: []string{
-				"593_issue_origin_foo.up.sql re-creates issue_origin_type_check without 'jira'; add 'jira' to the list in that migration",
-			},
+			want:  []string{reported},
+		},
+		{
+			name:  "later migration under a new constraint name without the value",
+			files: []migrationFile{{name: "593_issue_origin_foo.up.sql", sql: renamedWithoutJira}},
+			want:  []string{reported},
 		},
 		{
 			name:  "later migration with the value",
 			files: []migrationFile{{name: "593_issue_origin_foo.up.sql", sql: withJira}},
+		},
+		{
+			name:  "later check that does not list the column's values",
+			files: []migrationFile{{name: "593_issue_origin_foo.up.sql", sql: otherCheck}},
 		},
 		{
 			name:  "migration sorted before the fork migration",
@@ -132,7 +145,7 @@ func TestMissingForkConstraintValues(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := missingForkConstraintValues(tc.files, rules)
+			got := missingForkColumnValues(tc.files, rules)
 			if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
@@ -142,26 +155,31 @@ func TestMissingForkConstraintValues(t *testing.T) {
 
 var sqlLineComment = regexp.MustCompile(`--[^\n]*`)
 
-// missingForkConstraintValues reports each migration sorted after a rule's fork
-// migration whose ADD CONSTRAINT statement for that constraint lacks the value.
-func missingForkConstraintValues(files []migrationFile, rules []forkConstraintValue) []string {
+// missingForkColumnValues reports each statement, in a migration sorted after a
+// rule's fork migration, that alters the rule's table with a CHECK listing the
+// column's values without the fork's value. Any constraint name matches.
+func missingForkColumnValues(files []migrationFile, rules []forkColumnValue) []string {
 	sorted := append([]migrationFile(nil), files...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].name < sorted[j].name })
 
 	var problems []string
 	for _, rule := range rules {
 		since := rule.since + ".up.sql"
-		addConstraint := regexp.MustCompile(`(?is)\badd\s+constraint\s+"?` + regexp.QuoteMeta(rule.constraint) + `"?(\s[^;]*)?(;|$)`)
+		alterTable := regexp.MustCompile(`(?is)\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(?:"?public"?\.)?"?` +
+			regexp.QuoteMeta(rule.table) + `"?\s`)
+		listsValues := regexp.MustCompile(`(?is)\bcheck\s*\((?:.*[^\w])?"?` + regexp.QuoteMeta(rule.column) +
+			`"?(?:\s*::\s*\w+)?\s*(?:\bin\s*\(|=\s*any\s*\()`)
 		for _, file := range sorted {
 			if file.name <= since {
 				continue
 			}
 			sql := sqlLineComment.ReplaceAllString(file.sql, "")
-			for _, statement := range addConstraint.FindAllString(sql, -1) {
-				if !strings.Contains(statement, rule.value) {
+			for _, statement := range strings.Split(sql, ";") {
+				if alterTable.MatchString(statement) && listsValues.MatchString(statement) &&
+					!strings.Contains(statement, rule.value) {
 					problems = append(problems, fmt.Sprintf(
-						"%s re-creates %s without %s; add %s to the list in that migration",
-						file.name, rule.constraint, rule.value, rule.value))
+						"%s lists %s.%s values without %s; add %s to the list in that migration",
+						file.name, rule.table, rule.column, rule.value, rule.value))
 				}
 			}
 		}
